@@ -234,7 +234,12 @@ Resources:
             ResponsePagePath: /index.html
             ErrorCachingMinTTL: 10
         ViewerCertificate:
-          AcmCertificateArn: !GetAtt Certificate.Arn
+          # Ref, not !GetAtt Certificate.Arn. The only GetAtt attributes this
+          # resource publishes are CertificateArn and CertificateStatus - there
+          # is no 'Arn' attribute, and asking for one fails the stack with
+          # "Requested attribute Arn does not exist in schema for
+          # AWS::CertificateManager::Certificate". Ref returns the ARN.
+          AcmCertificateArn: !Ref Certificate
           # SNI keeps this free; a dedicated IP would cost ~$20/month.
           SslSupportMethod: sni-only
           MinimumProtocolVersion: TLSv1.2_2021
@@ -260,9 +265,13 @@ Resources:
       Name: !Ref DomainName
       Type: A
       AliasTarget:
-        # CloudFront's own hosted zone id, not the Route 53 zone above.
+        # CloudFront's own hosted zone id, not the Route 53 zone above. It is the
+        # same fixed value for every distribution and is not a GetAtt attribute
+        # of AWS::CloudFront::Distribution - asking for one fails with
+        # "Requested attribute HostedZoneId does not exist in schema for
+        # AWS::CloudFront::Distribution".
         DNSName: !GetAtt Distribution.DomainName
-        HostedZoneId: !GetAtt Distribution.HostedZoneId
+        HostedZoneId: Z2FDTNDATAQYW2
         EvaluateTargetHealth: false
 
   WwwAlias:
@@ -274,7 +283,8 @@ Resources:
       Type: A
       AliasTarget:
         DNSName: !GetAtt Distribution.DomainName
-        HostedZoneId: !GetAtt Distribution.HostedZoneId
+        # CloudFront's fixed hosted zone id; see the note on the record above.
+        HostedZoneId: Z2FDTNDATAQYW2
         EvaluateTargetHealth: false
 
 
@@ -351,7 +361,8 @@ Outputs:
 
   CertificateArn:
     Description: ACM certificate, created in us-east-1
-    Value: !GetAtt Certificate.Arn
+    # Ref returns the certificate ARN; see the note on ViewerCertificate.
+    Value: !Ref Certificate
 
   CloudFrontDomain:
     Description: The cloudfront.net hostname - works before DNS is configured
@@ -359,7 +370,9 @@ Outputs:
 
   CloudFrontHostedZoneId:
     Description: Use this when creating Route 53 alias records by hand
-    Value: !GetAtt Distribution.HostedZoneId
+    # CloudFront's hosted zone id is the same fixed value for every
+    # distribution; it is not a GetAtt attribute of the distribution.
+    Value: Z2FDTNDATAQYW2
 
   Route53ZoneId:
     Condition: CanManageDns

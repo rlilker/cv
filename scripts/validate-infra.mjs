@@ -120,6 +120,74 @@ if (parsed[tplRel]) {
     check(`!Ref ${ref} resolves`, resolvable.has(ref));
   }
 
+  // A CloudFront alias record must point at CloudFront's own hosted zone,
+  // Z2FDTNDATAQYW2. That is a fixed constant, not a GetAtt attribute of the
+  // distribution, and using the Route 53 zone id here silently breaks the alias.
+  const aliasZone = 'Z2FDTNDATAQYW2';
+  for (const res of Object.values(tpl.Resources ?? {})) {
+    if (res?.Type !== 'AWS::Route53::RecordSet') continue;
+    const target = res.Properties?.AliasTarget;
+    if (!target) continue;
+    check(
+      `Route53 ${res.Properties.Name} alias uses CloudFront's hosted zone`,
+      target.HostedZoneId === aliasZone,
+      `expected ${aliasZone}, found ${JSON.stringify(target.HostedZoneId)}`,
+    );
+  }
+
+  // Every !GetAtt must name an attribute the resource type actually publishes.
+  // CloudFormation only reports a bad one at create time:
+  //   "Requested attribute Arn does not exist in schema for
+  //    AWS::CertificateManager::Certificate"
+  // which is how a !GetAtt Certificate.Arn rolled back this stack. The ARN is
+  // what Ref returns, not a GetAtt attribute, and the real attribute names are
+  // CertificateArn / CertificateStatus.
+  //
+  // Only the types this template actually uses are listed; an unlisted type is
+  // reported rather than skipped, so the list cannot silently go stale.
+  const GETATT_ATTRS = {
+    'AWS::CertificateManager::Certificate': ['CertificateArn', 'CertificateStatus'],
+    'AWS::CloudFront::Distribution': ['DistributionDomainName', 'DomainName', 'Id'],
+    'AWS::CloudFront::OriginAccessControl': ['Id'],
+    'AWS::CloudFront::ResponseHeadersPolicy': ['Id'],
+    'AWS::S3::Bucket': [
+      'Arn', 'DomainName', 'DualStackDomainName', 'RegionalDomainName',
+      'WebsiteURL', 'ObjectLockEnabled', 'AccelerateEndpoint',
+    ],
+    'AWS::Route53::HostedZone': ['Id', 'Name'],
+    'AWS::IAM::Role': ['Arn', 'RoleId', 'UniqueId'],
+  };
+
+  // Note: the tag-preserving parser turns a short-form intrinsic into a string
+  // VALUE, e.g. `!GetAtt SiteBucket.Arn` becomes the string "!GetAtt ...". So
+  // these are found by inspecting values, not keys. The long form
+  // (Fn::GetAtt) keeps the key.
+  const getatt = [];
+  walk(tpl, (k, v) => {
+    if (typeof v !== 'string') return;
+    if (k === 'Fn::GetAtt') getatt.push(v);
+    else if (v.startsWith('!GetAtt ')) getatt.push(v.slice('!GetAtt '.length).trim());
+  });
+
+  for (const raw of new Set(getatt)) {
+    const [logicalId, attr] = raw.split('.').map((s) => s.trim());
+    const res = tpl.Resources?.[logicalId];
+    if (!res) {
+      check(`!GetAtt ${raw} targets a declared resource`, false, `no resource '${logicalId}'`);
+      continue;
+    }
+    const allowed = GETATT_ATTRS[res.Type];
+    if (!allowed) {
+      check(`!GetAtt attribute list known for ${res.Type}`, false, 'add it to GETATT_ATTRS in validate-infra.mjs');
+      continue;
+    }
+    check(
+      `!GetAtt ${logicalId}.${attr} is a real ${res.Type.split('::').pop()} attribute`,
+      allowed.includes(attr),
+      `allowed: ${allowed.join(', ')}`,
+    );
+  }
+
   // Security-critical settings.
   const bucket = Object.values(tpl.Resources ?? {}).find((r) => r.Type === 'AWS::S3::Bucket');
   const pab = bucket?.Properties?.PublicAccessBlockConfiguration ?? {};

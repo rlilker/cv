@@ -96,6 +96,31 @@ const faults = [
   //   - the two-argument !Sub form parses to an array, not a string, so the
   //     string-only check found nothing to inspect and silently passed.
   {
+    name: 'CloudFront origin pointed at a misspelled GetAtt attribute',
+    expect: 'is a real Bucket attribute',
+    mutate: (s) => s.replace('!GetAtt SiteBucket.RegionalDomainName', '!GetAtt SiteBucket.RegionalDomain'),
+  },
+  {
+    name: 'Route53 alias pointed at the Route 53 zone instead of CloudFront',
+    expect: "alias uses CloudFront's hosted zone",
+    mutate: (s) => s.replace('HostedZoneId: Z2FDTNDATAQYW2', 'HostedZoneId: Z1234567890ABC'),
+  },
+  {
+    name: 'GetAtt against a resource that does not exist',
+    expect: 'targets a declared resource',
+    mutate: (s) => s.replace('!GetAtt SiteBucket.RegionalDomainName', '!GetAtt NoSuchBucket.RegionalDomainName'),
+  },
+  {
+    name: 'CloudFrontHostedZoneId output built from a non-existent GetAtt',
+    expect: 'is a real Distribution attribute',
+    mutate: (s) => s.replace('Value: Z2FDTNDATAQYW2', 'Value: !GetAtt Distribution.HostedZoneId'),
+  },
+  {
+    name: 'viewer certificate uses the non-existent Certificate.Arn attribute',
+    expect: 'is a real Certificate attribute',
+    mutate: (s) => s.replace('AcmCertificateArn: !Ref Certificate', 'AcmCertificateArn: !GetAtt Certificate.Arn'),
+  },
+  {
     name: 'CloudFront name built directly from ${DomainName} (400 from CloudFront)',
     expect: 'name expands to a legal value',
     mutate: (s) =>
