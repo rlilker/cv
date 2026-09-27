@@ -62,6 +62,16 @@ const faults = [
     mutate: (s) => s.replace(/^[ \t]*PublicAccessBlockConfiguration:\r?\n(?:[ \t]*\w+: (?:true|false)\r?\n)+/m, ''),
   },
   {
+    name: 'CloudFront distribution with no custom domain alias, so the real domain fails TLS',
+    expect: 'CloudFront distribution has the apex domain as an alias',
+    mutate: (s) => s.replace(/^ {8}Aliases:\r?\n(?: {10}- .*\r?\n)+/m, ''),
+  },
+  {
+    name: 'CloudFront distribution missing the www alias',
+    expect: 'CloudFront distribution has the www alias',
+    mutate: (s) => s.replace(/^ {10}- !Sub 'www\.\$\{DomainName\}'\r?\n/m, ''),
+  },
+  {
     name: 'deploy role cannot read invalidation status, so the workflow wait fails',
     expect: 'deploy role can read invalidation status',
     mutate: (s) => s.replace(/^ {18}- cloudfront:GetInvalidation\r?\n/m, ''),

@@ -216,6 +216,24 @@ if (parsed[tplRel]) {
   check('CloudFront uses OAC', !!cfg?.Origins?.[0]?.OriginAccessControlId);
   check('CloudFront has error fallbacks', (cfg?.CustomErrorResponses ?? []).length > 0);
 
+  // The custom domain must be attached to the distribution, not just pointed at
+  // it in DNS. Without Aliases the edge serves only *.cloudfront.net and every
+  // request to the real domain fails the TLS handshake.
+  const aliases = (cfg?.Aliases ?? []).map((a) => String(a).replace(/^!Sub\s+/, '').replace(/^['"]|['"]$/g, ''));
+  const apex = tpl.Parameters?.DomainName?.Default ?? 'ryanlilker.com';
+  check(
+    'CloudFront distribution has the apex domain as an alias',
+    aliases.some((a) => a === apex || a === '!Ref DomainName'),
+    `aliases: ${JSON.stringify(aliases)}`,
+  );
+  check(
+    'CloudFront distribution has the www alias',
+    aliases.some((a) => a.includes('www.')),
+    `aliases: ${JSON.stringify(aliases)}`,
+  );
+  // The certificate covering the aliases is checked further down, where the
+  // Certificate resource is parsed, so it is not repeated here.
+
   // ViewerCertificate: CloudFront REQUIRES SslSupportMethod alongside an ACM
   // ARN, and will refuse to create the distribution without it.
   const cert = cfg?.ViewerCertificate ?? {};

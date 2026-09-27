@@ -215,6 +215,14 @@ Resources:
         Enabled: true
         HttpVersion: http2and3
         IPV6Enabled: true
+        # Without these aliases the distribution only answers on its default
+        # *.cloudfront.net name, so ryanlilker.com reaches CloudFront over DNS
+        # but gets "sslv3 alert handshake failure" - the edge has no custom
+        # domain to match, and the certificate is never presented. The Route 53
+        # records alone are not enough; the domain must be attached here too.
+        Aliases:
+          - !Ref DomainName
+          - !Sub 'www.${DomainName}'
         # PriceClass_All is deliberate: the 1 TB free tier is global, and
         # narrowing it to a cheaper region would only hurt UK visitors.
         PriceClass: PriceClass_All
