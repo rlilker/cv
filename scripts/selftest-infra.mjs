@@ -62,6 +62,33 @@ const faults = [
     mutate: (s) => s.replace(/^[ \t]*PublicAccessBlockConfiguration:\r?\n(?:[ \t]*\w+: (?:true|false)\r?\n)+/m, ''),
   },
   {
+    name: 'no bucket policy, so the origin access control grants nothing and every route 403s',
+    expect: 'bucket policy exists for the origin access control',
+    // Removes the whole resource block. Matches to the next line indented less
+    // than the resource key, which is how CloudFormation nests resource
+    // properties. Line endings are matched loosely because the file is CRLF on
+    // Windows.
+    mutate: (s) =>
+      s.replace(
+        /^ {2}SiteBucketPolicy:\r?\n(?:[ ]+[^\r\n]*\r?\n)*/m,
+        '',
+      ),
+  },
+  {
+    name: 'bucket policy grant not scoped to this distribution',
+    expect: 'bucket policy scope is not a wildcard',
+    mutate: (s) =>
+      s.replace(
+        /^ {16}'AWS:SourceArn': [^\n]*$/m,
+        "                'AWS:SourceArn': !Sub 'arn:aws:cloudfront::x:distribution/*'",
+      ),
+  },
+  {
+    name: 'bucket policy granting write access to CloudFront',
+    expect: 'bucket policy is read-only',
+    mutate: (s) => s.replace('Action: s3:GetObject', 'Action:\n                  - s3:GetObject\n                  - s3:PutObject'),
+  },
+  {
     name: 'CloudFront distribution with no custom domain alias, so the real domain fails TLS',
     expect: 'CloudFront distribution has the apex domain as an alias',
     mutate: (s) => s.replace(/^ {8}Aliases:\r?\n(?: {10}- .*\r?\n)+/m, ''),

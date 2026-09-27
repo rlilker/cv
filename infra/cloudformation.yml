@@ -143,6 +143,33 @@ Resources:
             AbortIncompleteMultipartUpload:
               DaysAfterInitiation: 7
 
+  # ── Bucket policy ───────────────────────────────────────────────────────────
+  #
+  #  Required for an Origin Access Control. OAC tells S3 to accept signed
+  #  requests from CloudFront, but on its own it grants nothing: without a
+  #  bucket policy S3 answers every origin fetch with AccessDenied and the site
+  #  returns 403 through CloudFront. The policy is the other half of OAC and is
+  #  scoped to this one distribution's service principal, so no other
+  #  distribution - and nothing on the public internet - can read the bucket.
+  SiteBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref SiteBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowCloudFrontReadOnly
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub '${SiteBucket.Arn}/*'
+            Condition:
+              StringEquals:
+                # Ties the grant to this distribution. Without this, any
+                # CloudFront distribution in any account could read the bucket.
+                'AWS:SourceArn': !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${Distribution}'
+
   # ── TLS ────────────────────────────────────────────────────────────────────
 
   # us-east-1 only, because CloudFront rejects a certificate from any other

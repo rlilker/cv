@@ -210,6 +210,27 @@ if (parsed[tplRel]) {
   );
 
   const dist = Object.values(tpl.Resources ?? {}).find((r) => r.Type === 'AWS::CloudFront::Distribution');
+
+  // An Origin Access Control grants nothing by itself. Without a bucket policy
+  // that trusts this specific distribution, S3 answers every origin fetch with
+  // AccessDenied and CloudFront returns 403 for every route.
+  const bucketPolicy = Object.values(tpl.Resources ?? {}).find((r) => r.Type === 'AWS::S3::BucketPolicy');
+  check('bucket policy exists for the origin access control', !!bucketPolicy);
+  const policyDoc = JSON.stringify(bucketPolicy?.Properties?.PolicyDocument ?? {});
+  check('bucket policy allows CloudFront to read objects', policyDoc.includes('cloudfront.amazonaws.com'));
+  check('bucket policy is read-only', policyDoc.includes('s3:GetObject') && !policyDoc.includes('s3:PutObject') && !policyDoc.includes('s3:DeleteObject'));
+  check('bucket policy is scoped to the distribution', policyDoc.includes('AWS:SourceArn'), 'unscoped grants every distribution in every account');
+  // The scope must name this distribution specifically, not a wildcard.
+  check(
+    'bucket policy scope is not a wildcard',
+    policyDoc.includes('distribution/*') === false,
+    'a wildcard would let any distribution in the account read the bucket',
+  );
+  check(
+    'bucket policy targets this stack\'s bucket',
+    (bucketPolicy?.Properties?.Bucket ?? '').includes('!Ref SiteBucket'),
+    bucketPolicy?.Properties?.Bucket,
+  );
   const cfg = dist?.Properties?.DistributionConfig ?? {};
   const cacheBehaviour = cfg?.DefaultCacheBehavior;
   check('CloudFront redirects to HTTPS', cacheBehaviour?.ViewerProtocolPolicy === 'redirect-to-https', cacheBehaviour?.ViewerProtocolPolicy);
