@@ -414,6 +414,39 @@ if (parsed[tplRel]) {
   check('deploy role is branch-scoped', trust.includes(':ref:refs/heads/'), 'sub pinned to a branch ref');
   check('deploy role session is <= 1h', (role?.Properties?.MaxSessionDuration ?? 0) <= 3600);
 
+  // The workflow declares `environment: production`, so GitHub issues an
+  // environment subject for every run and the branch subject is never presented.
+  // If only the branch form is allowed, every deploy fails at
+  // sts:AssumeRoleWithWebIdentity. The two must stay in step: the environment
+  // name here has to equal the one in .github/workflows/deploy.yml.
+  const subClaim = role?.Properties?.AssumeRolePolicyDocument?.Statement?.[0]?.Condition?.StringEquals
+    ?.['token.actions.githubusercontent.com:sub'];
+  const allowedSubs = Array.isArray(subClaim) ? subClaim : [subClaim].filter(Boolean);
+  check(
+    'deploy role trust allows an environment subject',
+    allowedSubs.some((s) => String(s).includes(':environment:')),
+    `allowed subjects: ${JSON.stringify(allowedSubs)}`,
+  );
+
+  const deployWf = readFileSync(resolve(root, '.github/workflows/deploy.yml'), 'utf8');
+  const wfEnv = deployWf.match(/^\s*environment:\s*(\S+)\s*$/m)?.[1];
+  // The trust policy carries the value through a !Sub parameter, so the
+  // parameter's default is what actually ends up in the subject claim.
+  const envParam = tpl.Parameters?.DeployEnvironment?.Default;
+  const expectedSub = `:environment:${wfEnv}`;
+  check('deploy workflow declares an environment', !!wfEnv, 'no `environment:` key found in deploy.yml');
+  check('DeployEnvironment parameter exists', !!envParam, 'no DeployEnvironment parameter in the template');
+  check(
+    'trust policy environment matches the deploy workflow',
+    !!wfEnv && !!envParam && wfEnv === envParam,
+    `workflow uses '${wfEnv}', trust policy resolves to '${envParam}'`,
+  );
+  check(
+    'trust policy references the DeployEnvironment parameter',
+    allowedSubs.some((s) => String(s).includes('${DeployEnvironment}')),
+    `allowed subjects: ${JSON.stringify(allowedSubs)}`,
+  );
+
   const policy = JSON.stringify(role?.Properties?.Policies ?? []);
   check('deploy role can invalidate CloudFront', policy.includes('cloudfront:CreateInvalidation'));
   check('deploy role can delete stale objects', policy.includes('s3:DeleteObject'), 'needed for --delete');

@@ -50,6 +50,14 @@ Parameters:
     Default: main
     Description: Branch allowed to deploy. Keep this to 'main'.
 
+  DeployEnvironment:
+    Type: String
+    Default: production
+    Description: >-
+      GitHub environment used by the deploy workflow. A workflow that declares
+      `environment:` always receives an environment OIDC subject instead of a
+      branch one, so this must match the workflow exactly.
+
   CreateHostedZone:
     Type: String
     Default: 'false'
@@ -328,7 +336,25 @@ Resources:
             Condition:
               StringEquals:
                 'token.actions.githubusercontent.com:aud': sts.amazonaws.com
-                'token.actions.githubusercontent.com:sub': !Sub 'repo:${GitHubOrg}/${GitHubRepo}:ref:refs/heads/${SubjectBranch}'
+                # A GitHub OIDC subject takes exactly one form per run, chosen by
+                # the most specific ref available. This workflow declares
+                # `environment: production`, so GitHub sends
+                #   repo:ORG/REPO:environment:production
+                # for EVERY run, including plain pushes to the default branch -
+                # the environment claim replaces the branch one. Pinning only
+                # the branch form (repo:...:ref:refs/heads/main) therefore fails
+                # every run with "Not authorized to perform
+                # sts:AssumeRoleWithWebIdentity", because no run ever presents
+                # that subject.
+                #
+                # Both real forms are listed. Dropping the environment claim
+                # would mean removing `environment:` from the workflow, which
+                # loses the manual-approval gate on a deploy role; keeping the
+                # branch claim as well means the role still stops working the
+                # day the environment is renamed.
+                'token.actions.githubusercontent.com:sub':
+                  - !Sub 'repo:${GitHubOrg}/${GitHubRepo}:ref:refs/heads/${SubjectBranch}'
+                  - !Sub 'repo:${GitHubOrg}/${GitHubRepo}:environment:${DeployEnvironment}'
       Policies:
         - PolicyName: PublishSite
           PolicyDocument:

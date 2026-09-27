@@ -17,9 +17,11 @@ import { dirname, resolve } from 'node:path';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const tplPath = resolve(root, 'infra/cloudformation.yml');
+const wfPath = resolve(root, '.github/workflows/deploy.yml');
 const validator = resolve(root, 'scripts/validate-infra.mjs');
 
 const original = readFileSync(tplPath, 'utf8');
+const originalWf = readFileSync(wfPath, 'utf8');
 
 /** Run the validator; returns whether it failed and the combined output. */
 const runValidator = () => {
@@ -63,6 +65,24 @@ const faults = [
     name: 'OIDC trust not scoped to a branch',
     expect: 'deploy role is branch-scoped',
     mutate: (s) => s.replace(/:ref:refs\/heads\/\$\{SubjectBranch\}/, ''),
+  },
+  {
+    name: 'OIDC trust missing the environment subject, so no run can assume the role',
+    expect: 'deploy role trust allows an environment subject',
+    mutate: (s) =>
+      s.replace(/^ {18}- !Sub 'repo:\$\{GitHubOrg\}\/\$\{GitHubRepo\}:environment:\$\{DeployEnvironment\}'\r?\n/m, ''),
+  },
+  {
+    name: 'DeployEnvironment parameter default renamed away from the deploy workflow',
+    expect: 'trust policy environment matches the deploy workflow',
+    mutate: (s) => s.replace(/^ {4}Default: production$/m, '    Default: staging'),
+  },
+  {
+    name: 'deploy workflow environment renamed away from the trust policy',
+    expect: 'trust policy environment matches the deploy workflow',
+    // Mutates the workflow, not the template, so the two can drift apart in
+    // real life. Restored in the finally block below.
+    mutateWorkflow: (s) => s.replace('environment: production', 'environment: prod-site'),
   },
   {
     name: 'bucket encryption algorithm removed',
@@ -190,15 +210,26 @@ console.log('Each fault is injected deliberately; the named check must fail.\n')
 
 try {
   writeFileSync(tplPath, original, 'utf8');
+  writeFileSync(wfPath, originalWf, 'utf8');
   line(!runValidator().failed, 'baseline: the real template passes validation');
 
   for (const fault of faults) {
-    const mutated = fault.mutate(original);
-    if (mutated === original) {
+    // A fault targets either the template or the workflow; the other is left
+    // untouched so the validator sees exactly one change at a time.
+    const touchesWorkflow = typeof fault.mutateWorkflow === 'function';
+    const base = touchesWorkflow ? originalWf : original;
+    const mutated = (touchesWorkflow ? fault.mutateWorkflow : fault.mutate)(base);
+    if (mutated === base) {
       line(false, `${fault.name} — mutation matched nothing, so the test proves nothing`);
       continue;
     }
-    writeFileSync(tplPath, mutated, 'utf8');
+    if (touchesWorkflow) {
+      writeFileSync(tplPath, original, 'utf8');
+      writeFileSync(wfPath, mutated, 'utf8');
+    } else {
+      writeFileSync(wfPath, originalWf, 'utf8');
+      writeFileSync(tplPath, mutated, 'utf8');
+    }
     const { failed, out } = runValidator();
     // The check label is printed as "FAIL  <label>", so the expected text has to
     // appear somewhere in a failing line rather than immediately after FAIL.
@@ -209,9 +240,13 @@ try {
   }
 } finally {
   writeFileSync(tplPath, original, 'utf8');
+  writeFileSync(wfPath, originalWf, 'utf8');
   const restored = readFileSync(tplPath, 'utf8') === original;
+  const restoredWf = readFileSync(wfPath, 'utf8') === originalWf;
   console.log(`\n  ${restored ? 'template restored' : 'WARNING: template was not restored'}`);
+  console.log(`  ${restoredWf ? 'workflow restored' : 'WARNING: workflow was not restored'}`);
   if (!restored) failures++;
+  if (!restoredWf) failures++;
 }
 
 console.log(`\n${failures === 0 ? 'SELF-TEST PASSED' : `SELF-TEST: ${failures} PROBLEM(S)`}\n`);
