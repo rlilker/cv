@@ -62,6 +62,11 @@ const faults = [
     mutate: (s) => s.replace(/^[ \t]*PublicAccessBlockConfiguration:\r?\n(?:[ \t]*\w+: (?:true|false)\r?\n)+/m, ''),
   },
   {
+    name: 'deploy role cannot read invalidation status, so the workflow wait fails',
+    expect: 'deploy role can read invalidation status',
+    mutate: (s) => s.replace(/^ {18}- cloudfront:GetInvalidation\r?\n/m, ''),
+  },
+  {
     name: 'OIDC trust not scoped to a branch',
     expect: 'deploy role is branch-scoped',
     mutate: (s) => s.replace(/:ref:refs\/heads\/\$\{SubjectBranch\}/, ''),

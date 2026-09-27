@@ -375,7 +375,13 @@ Resources:
                 Resource: !Sub '${SiteBucket.Arn}/*'
               - Sid: InvalidateCache
                 Effect: Allow
-                Action: cloudfront:CreateInvalidation
+                # GetInvalidation is required as well as CreateInvalidation: the
+                # workflow calls `aws cloudfront wait invalidation-completed`,
+                # which polls GetInvalidation. Without it the publish succeeds
+                # but the job fails on the wait.
+                Action:
+                  - cloudfront:CreateInvalidation
+                  - cloudfront:GetInvalidation
                 Resource: !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${Distribution}'
 
 Outputs:

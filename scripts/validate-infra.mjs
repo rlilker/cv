@@ -449,6 +449,13 @@ if (parsed[tplRel]) {
 
   const policy = JSON.stringify(role?.Properties?.Policies ?? []);
   check('deploy role can invalidate CloudFront', policy.includes('cloudfront:CreateInvalidation'));
+  // The workflow also runs `aws cloudfront wait invalidation-completed`, which
+  // polls GetInvalidation. Missing it publishes the site and then fails the job.
+  check(
+    'deploy role can read invalidation status',
+    policy.includes('cloudfront:GetInvalidation'),
+    'needed by `aws cloudfront wait invalidation-completed`',
+  );
   check('deploy role can delete stale objects', policy.includes('s3:DeleteObject'), 'needed for --delete');
 }
 
