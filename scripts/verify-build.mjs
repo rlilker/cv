@@ -237,17 +237,19 @@ check('nav has aria-label', all.every((h) => h.includes('aria-label="Sections"')
 check('decorative svgs are aria-hidden', all.every((h) => h.includes('aria-hidden="true"')));
 
 section('Source hygiene');
+
+/** Recursively list files under a directory matching a predicate. */
+const walk = (dir, match = () => true) =>
+  readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const p = join(dir, entry.name);
+    return entry.isDirectory() ? walk(p, match) : match(p) ? [p] : [];
+  });
+
 // A stray tag inside a <style> block is silently shipped as broken CSS — Astro
 // only emits a minifier warning and the build still passes. Catch it at source.
 {
-  const walk = (dir) =>
-    readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-      const p = join(dir, entry.name);
-      return entry.isDirectory() ? walk(p) : p.endsWith('.astro') ? [p] : [];
-    });
-
   const offenders = [];
-  for (const file of walk(resolve(root, 'src'))) {
+  for (const file of walk(resolve(root, 'src'), (p) => p.endsWith('.astro'))) {
     const lines = readFileSync(file, 'utf8').split(/\r?\n/);
     let inStyle = false;
     for (const [i, line] of lines.entries()) {
@@ -260,6 +262,15 @@ section('Source hygiene');
     }
   }
   check('no markup inside <style> blocks', offenders.length === 0, offenders.join(' '));
+}
+
+section('Shell script hygiene');
+// A CRLF line ending inside a .sh file makes bash fail with a syntax error,
+// which is baffling when the script looks correct in an editor.
+{
+  const shFiles = walk(resolve(root, 'scripts')).filter((f) => f.endsWith('.sh'));
+  const crlf = shFiles.filter((f) => readFileSync(f, 'utf8').includes('\r\n'));
+  check(`shell scripts use LF (${shFiles.length} found)`, crlf.length === 0, crlf.map((f) => relative(root, f)).join(' '));
 }
 
 section('Encoding');

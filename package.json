@@ -11,8 +11,9 @@
     "verify": "node scripts/verify-build.mjs",
     "outline": "node scripts/outline-page.mjs",
     "validate:infra": "node scripts/validate-infra.mjs",
+    "selftest:infra": "node scripts/selftest-infra.mjs",
     "check": "astro check",
-    "test": "npm run build && npm run verify && npm run validate:infra",
+    "test": "npm run build && npm run verify && npm run validate:infra && npm run selftest:infra",
     "preview": "astro preview"
   },
   "dependencies": {

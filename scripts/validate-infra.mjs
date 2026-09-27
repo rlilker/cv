@@ -39,7 +39,7 @@ const CF_CUSTOM_TAGS = CLOUDFORMATION_TAGS.map((t) => ({
 
 const parseYaml = (text) => parse(text, { customTags: CF_CUSTOM_TAGS });
 
-// ── 1. Every YAML file parses ───────────────────────────────────────────────
+const section = (name) => console.log(`\n--- ${name} ---`);
 
 const yamlFiles = [
   'infra/cloudformation.yml',
@@ -128,11 +128,57 @@ if (parsed[tplRel]) {
   check('S3 bucket retained on stack delete', bucket?.DeletionPolicy === 'Retain', bucket?.DeletionPolicy);
 
   const dist = Object.values(tpl.Resources ?? {}).find((r) => r.Type === 'AWS::CloudFront::Distribution');
-  const cacheBehaviour = dist?.Properties?.DistributionConfig?.DefaultCacheBehavior;
+  const cfg = dist?.Properties?.DistributionConfig ?? {};
+  const cacheBehaviour = cfg?.DefaultCacheBehavior;
   check('CloudFront redirects to HTTPS', cacheBehaviour?.ViewerProtocolPolicy === 'redirect-to-https', cacheBehaviour?.ViewerProtocolPolicy);
-  check('CloudFront uses OAC', !!dist?.Properties?.DistributionConfig?.Origins?.[0]?.OriginAccessControlId);
-  check('CloudFront uses an ACM cert', !!dist?.Properties?.DistributionConfig?.ViewerCertificate?.AcmCertificateArn);
-  check('CloudFront has error fallbacks', (dist?.Properties?.DistributionConfig?.CustomErrorResponses ?? []).length > 0);
+  check('CloudFront uses OAC', !!cfg?.Origins?.[0]?.OriginAccessControlId);
+  check('CloudFront has error fallbacks', (cfg?.CustomErrorResponses ?? []).length > 0);
+
+  // ViewerCertificate: CloudFront REQUIRES SslSupportMethod alongside an ACM
+  // ARN, and will refuse to create the distribution without it.
+  const cert = cfg?.ViewerCertificate ?? {};
+  check('viewer certificate has SslSupportMethod', !!cert.SslSupportMethod, cert.SslSupportMethod);
+  check('viewer certificate uses an ACM cert', !!cert.AcmCertificateArn);
+  check('viewer certificate is SNI not a dedicated IP', cert.SslSupportMethod === 'sni-only', 'sni-only avoids ~$20/mo');
+  check('minimum TLS is 1.2 or newer', /TLSv1\.[23]/.test(cert.MinimumProtocolVersion ?? ''), cert.MinimumProtocolVersion);
+
+  // No property may be an empty mapping. This is the exact failure mode that
+  // produced a truncated BucketEncryption block: a key present with no value.
+  const emptyKeys = [];
+  const walkEmpty = (node, path) => {
+    if (Array.isArray(node)) node.forEach((v, i) => walkEmpty(v, `${path}[${i}]`));
+    else if (node && typeof node === 'object') {
+      for (const [k, v] of Object.entries(node)) {
+        const here = `${path}.${k}`;
+        if (v === null || v === undefined) emptyKeys.push(here);
+        else if (typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 0) emptyKeys.push(`${here} (empty)`);
+        else walkEmpty(v, here);
+      }
+    }
+  };
+  walkEmpty(tpl.Resources, 'Resources');
+  check('no empty property values', emptyKeys.length === 0, emptyKeys.join(' '));
+
+  // Specific values that a truncated block would drop.
+  const bucketProps = bucket?.Properties ?? {};
+  const encRules = bucketProps?.BucketEncryption?.ServerSideEncryptionConfiguration;
+  check('bucket encryption has at least one rule', Array.isArray(encRules) && encRules.length > 0, `${encRules?.length ?? 0} rules`);
+  check('bucket encryption uses SSE-S3 or KMS', ['AES256', 'aws:kms'].includes(encRules?.[0]?.ServerSideEncryptionByDefault?.SSEAlgorithm));
+  check('bucket ownership is bucket-owner-enforced', bucketProps?.OwnershipControls?.Rules?.[0]?.ObjectOwnership === 'BucketOwnerEnforced');
+  check('bucket versioning enabled', bucketProps?.VersioningConfiguration?.Status === 'Enabled');
+  check('bucket has a lifecycle rule', (bucketProps?.LifecycleConfiguration?.Rules ?? []).length > 0);
+
+  // Certificate validation must reference a real zone or be omitted entirely,
+  // never a placeholder string.
+  const acm = Object.values(tpl.Resources ?? {}).find((r) => r.Type === 'AWS::CertificateManager::Certificate');
+  const dvo = JSON.stringify(acm?.Properties?.DomainValidationOptions ?? '');
+  check('no placeholder zone id in cert validation', !dvo.includes('_ignore') && !dvo.includes('placeholder'));
+  check('cert covers the www SAN', JSON.stringify(acm?.Properties ?? {}).includes('www.${DomainName}'));
+  check('cert uses DNS validation', acm?.Properties?.ValidationMethod === 'DNS');
+
+  // A hosted zone reference must come from the zone resource or a parameter.
+  const zoneParam = tpl.Parameters?.ExistingHostedZoneId !== undefined;
+  check('existing hosted zone can be passed as a parameter', zoneParam);
 
   const role = Object.values(tpl.Resources ?? {}).find((r) => r.Type === 'AWS::IAM::Role');
   const trust = JSON.stringify(role?.Properties?.AssumeRolePolicyDocument ?? {});

@@ -1,32 +1,25 @@
-# ─────────────────────────────────────────────────────────────────────────────
-#  Infrastructure — CloudFormation for the cheapest viable hosting setup.
+# =============================================================================
+#  ryanlilker.com — static site infrastructure
 #
 #      Route 53 (alias)  ->  CloudFront  ->  S3 (private origin)
 #
-#  Why this shape:
-#   - S3 alone is nearly free, but it serves plain HTTP only and has no CDN.
-#     A CV gets shared by email and LinkedIn, so HTTPS and edge caching matter.
-#   - CloudFront's free tier (1 TB egress/mo) dwarfs a CV site's traffic, and an
-#     ACM certificate is free, so the running cost is effectively just the
-#     Route 53 hosted zone (~$0.50/mo).
-#   - The bucket stays fully private: CloudFront reaches it through an Origin
-#     Access Control, so the only way in is through the distribution.
-#   - The GitHub OIDC provider + deploy role mean CI needs *no* stored AWS keys.
+#  Deploy everything into us-east-1. That is deliberate:
+#    - an ACM certificate used by CloudFront MUST be in us-east-1;
+#    - CloudFront, IAM and Route 53 are global, so their region is irrelevant;
+#    - S3 in us-east-1 is not more expensive here, because data transferred
+#      from S3 to CloudFront is free.
+#  One region for the whole stack keeps this to a single command.
 #
-#  Deploy from the AWS console (CloudFormation -> Create stack -> upload), or:
-#      aws cloudformation deploy \
-#        --template-file infra/cloudformation.yml \
-#        --stack-name cv-site \
-#        --capabilities CAPABILITY_NAMED_IAM \
-#        --parameter-overrides DomainName=ryanlilker.com GitHubOrg=rlilker
+#  Cost: Route 53 hosted zone ~$0.50/mo. Everything else is inside the free
+#  tier at CV-site traffic levels.
 #
-#  See README -> "One-time AWS setup".
-# ─────────────────────────────────────────────────────────────────────────────
+#  Prefer the script:  bash scripts/deploy.sh
+# =============================================================================
 
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >-
-  Static CV site for ryanlilker.com - S3 origin behind CloudFront, with a
-  GitHub Actions OIDC deploy role.
+  Static site for ryanlilker.com - private S3 origin behind CloudFront, with a
+  GitHub Actions OIDC deploy role. Deploy to us-east-1.
 
 Parameters:
   DomainName:
@@ -54,33 +47,48 @@ Parameters:
   SubjectBranch:
     Type: String
     Default: main
-    Description: Branch allowed to deploy. Keep to 'main'.
+    Description: Branch allowed to deploy. Keep this to 'main'.
 
   CreateHostedZone:
     Type: String
     Default: 'false'
     AllowedValues: ['true', 'false']
     Description: >-
-      Set true only if the Route 53 hosted zone does not already exist in this
-      account. If it does exist, set false and manage the A records separately.
+      Set true ONLY if no hosted zone for the domain exists in this account.
+      You will then need to point the domain's nameservers at Route 53 before
+      the certificate can validate.
+
+  ExistingHostedZoneId:
+    Type: String
+    Default: ''
+    Description: >-
+      If the hosted zone already exists in this account, paste its ID here
+      (e.g. Z1234567890ABC). The stack then creates the DNS records and the
+      certificate validates automatically. Leave empty otherwise.
 
 Conditions:
-  HasBucketName: !Not [!Equals [!Ref BucketName, '']]
-  ShouldCreateHostedZone: !Equals [!Ref CreateHostedZone, 'true']
+  UseExplicitBucketName: !Not [!Equals [!Ref BucketName, '']]
+  CreateZone: !Equals [!Ref CreateHostedZone, 'true']
+  HaveExistingZone: !Not [!Equals [!Ref ExistingHostedZoneId, '']]
+  # True only when we know a zone id, so we can write records and validate.
+  CanManageDns: !Or [!Condition CreateZone, !Condition HaveExistingZone]
 
 Resources:
-  # ── Content bucket ────────────────────────────────────────────────────────
+  # ── Content bucket ─────────────────────────────────────────────────────────
+  #
+  #  Kept fully private. CloudFront reads it through an Origin Access Control,
+  #  so there is no public bucket policy anywhere and the only route to the
+  #  content is through the distribution.
 
   SiteBucket:
     Type: AWS::S3::Bucket
-    # Retain on stack delete: losing this bucket means losing the site.
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      BucketName: !If [HasBucketName, !Ref BucketName, !Sub '${DomainName}-cv-site']
-      # Block all public access. CloudFront gets in via OAC, not via a public
-      # bucket policy - the difference between "private" and "looks private but
-      # has a wide-open policy sitting next to it".
+      BucketName: !If
+        - UseExplicitBucketName
+        - !Ref BucketName
+        - !Sub '${DomainName}-cv-site'
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
@@ -88,15 +96,54 @@ Resources:
         RestrictPublicBuckets: true
       BucketEncryption:
         ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+            BucketKeyEnabled: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          # Keeps rollback available without storing every old build forever.
+          - Id: RetireOldDeployments
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 30
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
 
-  # ── CloudFront ────────────────────────────────────────────────────────────
+  # ── TLS ────────────────────────────────────────────────────────────────────
+
+  # us-east-1 only, because CloudFront rejects a certificate from any other
+  # region. DomainValidationOptions is supplied only when we know the hosted
+  # zone id, so ACM can write its own validation records.
+  Certificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Ref DomainName
+      SubjectAlternativeNames:
+        - !Sub 'www.${DomainName}'
+      ValidationMethod: DNS
+      DomainValidationOptions: !If
+        - CanManageDns
+        - - DomainName: !Ref DomainName
+            HostedZoneId: !If [CreateZone, !Ref HostedZone, !Ref ExistingHostedZoneId]
+            ValidationDomain: !Ref DomainName
+          - DomainName: !Sub 'www.${DomainName}'
+            HostedZoneId: !If [CreateZone, !Ref HostedZone, !Ref ExistingHostedZoneId]
+            ValidationDomain: !Ref DomainName
+        - !Ref AWS::NoValue
+
+  # ── CloudFront ─────────────────────────────────────────────────────────────
 
   OriginAccessControl:
     Type: AWS::CloudFront::OriginAccessControl
     Properties:
       OriginAccessControlConfig:
         Name: !Sub '${DomainName}-cv-oac'
-        Description: OAC for the CV site S3 origin
+        Description: OAC for the static site S3 origin
         OriginAccessControlOriginType: s3
         SigningBehavior: always
         SigningProtocol: sigv4
@@ -123,15 +170,14 @@ Resources:
 
   Distribution:
     Type: AWS::CloudFront::Distribution
-    DependsOn: SiteBucket
     Properties:
       DistributionConfig:
-        Comment: !Sub 'CV site for ${DomainName}'
+        Comment: !Sub 'Static site for ${DomainName}'
         Enabled: true
         HttpVersion: http2and3
         IPV6Enabled: true
-        # PriceClass_All is deliberate: the free tier is global, and pinning to
-        # a cheaper region would only hurt UK/US visitors.
+        # PriceClass_All is deliberate: the 1 TB free tier is global, and
+        # narrowing it to a cheaper region would only hurt UK visitors.
         PriceClass: PriceClass_All
         Origins:
           - Id: s3-origin
@@ -146,12 +192,13 @@ Resources:
           Compress: true
           AllowedMethods: [GET, HEAD, OPTIONS]
           CachedMethods: [GET, HEAD, OPTIONS]
-          # 4135ea2d-6df8-44a3-9df3-4b5a84be39ad = CachingOptimized.
-          # Ignores cookies and query strings, so every response is cacheable.
+          # 4135ea2d-6df8-44a3-9df3-4b5a84be39ad is the managed
+          # CachingOptimized policy. It ignores cookies and query strings, so
+          # every response is cacheable at the edge.
           CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
           ResponseHeadersPolicyId: !Ref ResponseHeadersPolicy
-        # Serve index.html for unknown paths so the site still resolves if it
-        # ever grows beyond a single page.
+        # Serve index.html for unknown paths so the site keeps resolving even
+        # if it grows beyond a single page.
         CustomErrorResponses:
           - ErrorCode: 403
             ResponseCode: 200
@@ -163,65 +210,52 @@ Resources:
             ErrorCachingMinTTL: 10
         ViewerCertificate:
           AcmCertificateArn: !GetAtt Certificate.Arn
+          # SNI keeps this free; a dedicated IP would cost ~$20/month.
+          SslSupportMethod: sni-only
+          MinimumProtocolVersion: TLSv1.2_2021
 
-  # ── TLS ───────────────────────────────────────────────────────────────────
-
-  # Must live in us-east-1 for CloudFront to use it. If deploying from another
-  # region, add ` --region us-east-1` to the deploy command, or create the
-  # certificate separately and pass its ARN in.
-  Certificate:
-    Type: AWS::CertificateManager::Certificate
-    Properties:
-      DomainName: !Ref DomainName
-      SubjectAlternativeNames:
-        - !Sub 'www.${DomainName}'
-      ValidationMethod: DNS
-      DomainValidationOptions:
-        # Only meaningful when this stack also owns the zone; otherwise drop
-        # DomainValidationOptions and validate from the ACM console.
-        - DomainName: !Ref DomainName
-          HostedZoneId: !Select [0, !If [ShouldCreateHostedZone, [!Ref HostedZone], ['_ignore']]]
-          ValidationDomain: !Ref DomainName
-        - DomainName: !Sub 'www.${DomainName}'
-          HostedZoneId: !Select [0, !If [ShouldCreateHostedZone, [!Ref HostedZone], ['_ignore']]]
-          ValidationDomain: !Ref DomainName
-
-  # ── DNS ───────────────────────────────────────────────────────────────────
+  # ── DNS ────────────────────────────────────────────────────────────────────
+  #
+  #  Only created when we have a usable zone. If neither condition holds, the
+  #  A records must be made by hand; the outputs give you the values.
 
   HostedZone:
     Type: AWS::Route53::HostedZone
-    Condition: ShouldCreateHostedZone
+    Condition: CreateZone
     Properties:
       Name: !Sub '${DomainName}.'
       HostedZoneConfig:
-        Comment: Hosted zone for the CV site
+        Comment: Hosted zone for the static site
 
-  # The alias target uses the *distribution's* hosted zone id, which is
-  # CloudFront's own zone - not the Route 53 zone this template may create.
   ApexAlias:
     Type: AWS::Route53::RecordSet
-    Condition: ShouldCreateHostedZone
+    Condition: CanManageDns
     Properties:
-      HostedZoneId: !If [ShouldCreateHostedZone, !Ref HostedZone, !Ref AWS::NoValue]
+      HostedZoneId: !If [CreateZone, !Ref HostedZone, !Ref ExistingHostedZoneId]
       Name: !Ref DomainName
       Type: A
       AliasTarget:
+        # CloudFront's own hosted zone id, not the Route 53 zone above.
         DNSName: !GetAtt Distribution.DomainName
         HostedZoneId: !GetAtt Distribution.HostedZoneId
         EvaluateTargetHealth: false
 
   WwwAlias:
     Type: AWS::Route53::RecordSet
-    Condition: ShouldCreateHostedZone
+    Condition: CanManageDns
     Properties:
-      HostedZoneId: !If [ShouldCreateHostedZone, !Ref HostedZone, !Ref AWS::NoValue]
+      HostedZoneId: !If [CreateZone, !Ref HostedZone, !Ref ExistingHostedZoneId]
       Name: !Sub 'www.${DomainName}'
       Type: A
       AliasTarget:
         DNSName: !GetAtt Distribution.DomainName
         HostedZoneId: !GetAtt Distribution.HostedZoneId
+        EvaluateTargetHealth: false
 
-  # ── GitHub Actions OIDC ───────────────────────────────────────────────────
+
+  # ── GitHub Actions OIDC ────────────────────────────────────────────────────
+  #
+  #  This is what removes the need to store AWS keys in GitHub at all.
 
   GitHubOidcProvider:
     Type: AWS::IAM::OIDCProvider
@@ -229,16 +263,16 @@ Resources:
       Url: https://token.actions.githubusercontent.com
       ClientIdList:
         - sts.amazonaws.com
-      # Optional for this provider; AWS accepts the well-known GitHub leaf.
+      # Optional for this well-known provider; AWS trusts GitHub's leaf.
       ThumbprintList: []
 
-  # Scoped to this repo *and* this branch. A job on any other branch, or a
-  # pull request from a fork, cannot assume this role.
+  # Scoped to this repo AND this branch. A job on any other branch, or a pull
+  # request from a fork, cannot assume this role.
   DeployRole:
     Type: AWS::IAM::Role
     Properties:
       RoleName: !Sub '${DomainName}-cv-github-deploy'
-      Description: Assumed by GitHub Actions to publish the CV site
+      Description: Assumed by GitHub Actions to publish the static site
       MaxSessionDuration: 3600
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
@@ -287,48 +321,31 @@ Outputs:
     Description: Set as the AWS_DEPLOY_ROLE_ARN GitHub secret
     Value: !GetAtt DeployRole.Arn
 
-  OidcProviderArn:
-    Description: Reference only - no action needed
-    Value: !Ref GitHubOidcProvider
-
-  CloudFrontDomain:
-    Description: The default cloudfront.net hostname (works before DNS validates)
-    Value: !GetAtt Distribution.DomainName
-
   CertificateArn:
-    Description: ACM certificate in use
+    Description: ACM certificate, created in us-east-1
     Value: !GetAtt Certificate.Arn
 
+  CloudFrontDomain:
+    Description: The cloudfront.net hostname - works before DNS is configured
+    Value: !GetAtt Distribution.DomainName
+
+  CloudFrontHostedZoneId:
+    Description: Use this when creating Route 53 alias records by hand
+    Value: !GetAtt Distribution.HostedZoneId
+
+  Route53ZoneId:
+    Condition: CanManageDns
+    Description: The hosted zone the stack wrote the records into
+    Value: !If [CreateZone, !Ref HostedZone, !Ref ExistingHostedZoneId]
+
   SiteUrl:
-    Description: Where the site will be live once DNS has validated
+    Description: Where the site will be live once DNS is in place
     Value: !Sub 'https://${DomainName}/'
 
-  Note:
-    Description: Remaining manual steps
-    Value: >-
-      Add the two GitHub repository secrets (AWS_DEPLOY_ROLE_ARN and
-      DISTRIBUTION_ID), push to main, then confirm the ACM certificate
-      validated and the apex domain resolves to the distribution.
+  NextSteps:
+    Description: What is left to do by hand
+    Value: !If
+      - CanManageDns
+      - 'DNS records were created. Wait for the certificate to reach ISSUED, then push to main.'
+      - 'No hosted zone was available: create A alias records for the apex and www pointing at the CloudFrontDomain output, then push to main.'
 
-        EvaluateTargetHealth: false
-
-          SslSupportMethod: sni-only
-          MinimumProtocolVersion: TLSv1.2_2021
-
-          - ServerSideEncryptionByDefault:
-              SSEAlgorithm: AES256
-            BucketKeyEnabled: true
-      OwnershipControls:
-        Rules:
-          - ObjectOwnership: BucketOwnerEnforced
-      VersioningConfiguration:
-        Status: Enabled
-      LifecycleConfiguration:
-        Rules:
-          # Previous deployments are not needed once the live one is verified.
-          - Id: RetireOldDeployments
-            Status: Enabled
-            NoncurrentVersionExpiration:
-              NoncurrentDays: 30
-            AbortIncompleteMultipartUpload:
-              DaysAfterInitiation: 7

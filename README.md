@@ -167,67 +167,106 @@ inside each `.astro` file.
 
 ## One-time AWS setup
 
-The whole environment is one CloudFormation stack:
-[`infra/cloudformation.yml`](infra/cloudformation.yml). It creates the S3
-bucket, CloudFront distribution, ACM certificate, the GitHub OIDC provider, and
-a deploy role.
+The whole environment is one CloudFormation stack, driven by a script.
 
-### 1. Deploy the stack
+> **You run this yourself, not me.** It needs your AWS credentials, which is
+> exactly why it is a script rather than something the assistant ran for you.
+> Never paste AWS keys into a chat window or commit them to the repo.
 
-**Option A — console.** CloudFormation → Create stack → Upload template →
-select the file → Next. Accept the defaults (`DomainName=ryanlilker.com`,
-`GitHubOrg=rlilker`, `GitHubRepo=cv`, `CreateHostedZone=false`).
+### Prerequisites
 
-**Option B — CLI.**
+1. **AWS CLI v2** — <https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html>
+   On Windows: `winget install Amazon.AWSCLI`
+2. **Credentials** — `aws configure`, or set `AWS_PROFILE` to an existing profile.
+3. **GitHub CLI** — already authenticated for `rlilker/cv`.
+
+Check the CLI is working before going further:
 
 ```bash
-aws cloudformation deploy \
-  --template-file infra/cloudformation.yml \
-  --stack-name cv-site \
-  --capabilities CAPABILITY_NAMED_IAM \
-  --parameter-overrides DomainName=ryanlilker.com GitHubOrg=rlilker GitHubRepo=cv
+aws sts get-caller-identity
 ```
 
-> **Region note.** CloudFront requires its ACM certificate in `us-east-1`. The
-> `Certificate` resource must be created in `us-east-1`; if you deploy the rest
-> of the stack elsewhere, either run the whole stack in `us-east-1` (the S3
-> bucket and IAM role have no regional dependency) or create the certificate
-> separately and pass the ARN in.
+### Deploy
 
-### 2. Choose your hosted-zone situation
+```bash
+bash scripts/deploy.sh
+```
 
-`CreateHostedZone` defaults to `false` because in most cases the zone for
-`ryanlilker.com` already exists.
+That single command will:
 
-- **Zone already exists (most likely).** Leave it `false`, then add two
-  CloudFront alias records by hand in Route 53:
+1. confirm your credentials work, and print the account id
+2. look for an existing Route 53 hosted zone for `ryanlilker.com`
+3. create the stack (3–8 minutes) — S3, CloudFront, ACM certificate, OIDC
+   provider, deploy role
+4. set the four GitHub secrets and variables from the stack outputs
+5. wait for the ACM certificate to reach `ISSUED`
 
-  | Name | Type | Target |
-  | ---- | ---- | ------ |
-  | `ryanlilker.com` | A | Alias → CloudFront distribution, *Evaluate target health* off |
-  | `www.ryanlilker.com` | A | Alias → same distribution |
+Everything is created in **us-east-1**, deliberately: CloudFront only accepts ACM
+certificates from that region. CloudFront, IAM and Route 53 are global anyway,
+and S3 there is not more expensive because S3→CloudFront transfer is free.
 
-  Use the `CloudFrontDomain` / `DistributionId` stack outputs.
+Override anything if needed:
 
-- **Zone does not exist.** Set `CreateHostedZone=true`. The stack creates the
-  zone, but you still need to point your registrar's nameservers at the
-  `NameServers` listed in the stack's hosted zone, and validate the ACM
-  certificate via the DNS records it generates.
+```bash
+AWS_PROFILE=prod DOMAIN=ryanlilker.com bash scripts/deploy.sh
+```
 
-### 3. Validate the certificate
+### The two Route 53 cases
 
-The certificate stays `PENDING_VALIDATION` until DNS resolves. After the records
-exist, the stack moves it to `ISSUED` (usually within a few minutes). Until
-then the site is still reachable on the `*.cloudfront.net` hostname, over HTTP.
+This is the only part that may need a manual step. The script tells you which
+case you are in.
+
+**You already have a Route 53 zone in this account** (most likely). The script
+detects it and passes the zone id to the stack, which then writes the A alias
+records for you. Nothing to do by hand.
+
+**No zone in this account.** The stack creates one, but your domain's
+nameservers must be pointed at Route 53 before the certificate can validate:
+
+1. Read the four nameservers from the `HostedZone` resource in the stack.
+2. At your registrar, replace the domain's nameservers with those four.
+3. Wait for propagation (minutes to a few hours). ACM then issues the
+   certificate automatically — no manual validation records needed.
+
+### Then publish
+
+```bash
+git push origin main
+```
+
+The Deploy workflow builds the site, verifies it, syncs to S3 and invalidates
+CloudFront. Watch it in the Actions tab.
+
+### Verify it is really live
+
+```bash
+bash scripts/verify-live.sh
+```
+
+This needs only `curl` — no AWS access. It checks reachability, TLS, the
+HTTP→HTTPS redirect, that all four pages return 200, that the CV data is
+actually present in the HTML, that security headers are set, and that fonts are
+self-hosted. On failure it prints the likely cause.
+
+You can also view the site before DNS is configured, using the
+`CloudFrontDomain` stack output — that works over HTTPS immediately.
+
+### Tearing it down
+
+```bash
+aws cloudformation delete-stack --stack-name cv-site --region us-east-1
+```
+
+The bucket has `DeletionPolicy: Retain`, so it survives. Delete it separately
+with `aws s3 rb s3://<bucket> --force` if you really want it gone.
 
 ---
 
 ## GitHub configuration
 
-Two **secrets** and two **variables** on the repository
-(Settings → Secrets and variables → Actions).
+`deploy.sh` sets these for you. To do it by hand, or to change them later:
 
-**Secrets**
+**Secrets** (Settings → Secrets and variables → Actions)
 
 | Name | Value |
 | ---- | ----- |
@@ -238,18 +277,25 @@ Two **secrets** and two **variables** on the repository
 
 | Name | Value |
 | ---- | ----- |
-| `AWS_REGION` | the region the bucket lives in, e.g. `eu-west-2` |
-| `SITE_BUCKET` | the `BucketName` stack output, e.g. `ryanlilker.com-cv-site` |
-
-Set them with `gh` if you prefer:
+| `AWS_REGION` | `us-east-1` |
+| `SITE_BUCKET` | the `BucketName` stack output |
 
 ```bash
 gh secret set AWS_DEPLOY_ROLE_ARN --body 'arn:aws:iam::123456789012:role/ryanlilker.com-cv-github-deploy'
 gh secret set DISTRIBUTION_ID     --body 'E1ABCDEFGHIJK'
-gh variable set AWS_REGION  --body 'eu-west-2'
+gh variable set AWS_REGION  --body 'us-east-1'
 gh variable set SITE_BUCKET --body 'ryanlilker.com-cv-site'
 ```
 
+**No AWS access keys are stored anywhere.** The workflow calls
+`sts:AssumeRoleWithWebIdentity` with a short-lived GitHub OIDC token, and the
+role's trust policy pins `sub` to `repo:rlilker/cv:ref:refs/heads/main` — so a
+job on any other branch, or a pull request from a fork, cannot deploy.
+
+The workflow also references a `production` GitHub Environment. It is optional,
+but it is where you would add an approval gate later.
+
+---
 
 ## How deploying works
 

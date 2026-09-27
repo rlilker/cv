@@ -7,6 +7,9 @@
 *.bat  text eol=crlf
 *.ps1  text eol=crlf
 
+# Shell scripts MUST be LF or bash fails with a syntax error on the \r.
+*.sh   text eol=lf
+
 # Binary assets - never touch line endings.
 *.woff2 binary
 *.woff  binary
