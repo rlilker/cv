@@ -142,6 +142,50 @@ if (parsed[tplRel]) {
   check('viewer certificate is SNI not a dedicated IP', cert.SslSupportMethod === 'sni-only', 'sni-only avoids ~$20/mo');
   check('minimum TLS is 1.2 or newer', /TLSv1\.[23]/.test(cert.MinimumProtocolVersion ?? ''), cert.MinimumProtocolVersion);
 
+  // CloudFront policy names allow only alphanumerics, dashes and underscores.
+  // A domain name contains dots, so 'ryanlilker.com-cv-headers' is rejected
+  // with a 400 at create time.
+  //
+  // Only the Name property is constrained; Description and Comment are free
+  // text. Short-form intrinsics parse to the string '!Sub <template>', so the
+  // tag prefix has to be stripped before the name is inspected. CloudFront
+  // substitutes the domain name itself, so the check only has to look at the
+  // literal text around the ${...} placeholders.
+  const nameLiterals = (node, out = []) => {
+    if (Array.isArray(node)) {
+      node.forEach((n) => nameLiterals(n, out));
+    } else if (node && typeof node === 'object') {
+      for (const [k, v] of Object.entries(node)) {
+        if (k === 'Name' && typeof v === 'string') out.push(v);
+        else nameLiterals(v, out);
+      }
+    }
+    return out;
+  };
+
+  for (const [logicalId, res] of Object.entries(tpl.Resources ?? {})) {
+    if (!String(res?.Type ?? '').startsWith('AWS::CloudFront::')) continue;
+    for (const raw of nameLiterals(res)) {
+      const name = raw.replace(/^!Sub\s+/, '').replace(/^['"]|['"]$/g, '');
+      const literal = name.replace(/\$\{[^}]*\}/g, 'x');
+      check(
+        `CloudFront ${logicalId} name is [A-Za-z0-9_-] safe`,
+        /^[A-Za-z0-9_-]+$/.test(literal),
+        `'${literal}' contains characters CloudFront rejects (dots, spaces, colons)`,
+      );
+    }
+  }
+
+  // ACM requires at least one thumbprint per OIDC provider; an empty list is
+  // rejected with "Thumbprint list must contain at least one entry".
+  const oidc = Object.values(tpl.Resources ?? {}).find((r) => r.Type === 'AWS::IAM::OIDCProvider');
+  const thumbs = oidc?.Properties?.ThumbprintList;
+  check('OIDC provider has at least one thumbprint', Array.isArray(thumbs) && thumbs.length > 0, `${thumbs?.length ?? 0} thumbprint(s)`);
+  check(
+    'OIDC thumbprints look like SHA-1 fingerprints',
+    Array.isArray(thumbs) && thumbs.every((t) => /^[0-9a-f]{40}$/i.test(String(t))),
+  );
+
   // No property may be an empty mapping. This is the exact failure mode that
   // produced a truncated BucketEncryption block: a key present with no value.
   const emptyKeys = [];
@@ -171,10 +215,46 @@ if (parsed[tplRel]) {
   // Certificate validation must reference a real zone or be omitted entirely,
   // never a placeholder string.
   const acm = Object.values(tpl.Resources ?? {}).find((r) => r.Type === 'AWS::CertificateManager::Certificate');
-  const dvo = JSON.stringify(acm?.Properties?.DomainValidationOptions ?? '');
+  const acmProps = acm?.Properties ?? {};
+  const dvoRaw = acmProps.DomainValidationOptions;
+  const dvo = JSON.stringify(dvoRaw ?? '');
   check('no placeholder zone id in cert validation', !dvo.includes('_ignore') && !dvo.includes('placeholder'));
-  check('cert covers the www SAN', JSON.stringify(acm?.Properties ?? {}).includes('www.${DomainName}'));
-  check('cert uses DNS validation', acm?.Properties?.ValidationMethod === 'DNS');
+  check('cert covers the www SAN', JSON.stringify(acmProps).includes('www.${DomainName}'));
+  check('cert uses DNS validation', acmProps.ValidationMethod === 'DNS');
+
+  // ACM rejects a DomainValidationOptions entry that sets BOTH HostedZoneId
+  // and ValidationDomain: "You can only have value for validationDomain or
+  // HostedZoneId but not both."
+  //
+  // The block is wrapped in a short-form !If, which the tag-preserving parser
+  // flattens into a plain string, so the parsed object cannot be inspected.
+  // The raw text is scanned instead: split the block into its per-name entries
+  // and confirm no entry names both properties.
+  const certBlock = readFileSync(resolve(root, 'infra/cloudformation.yml'), 'utf8').match(
+    /DomainValidationOptions:[\s\S]*?\n {6}\S/,
+  )?.[0];
+  check('cert validation block was found to inspect', !!certBlock);
+  if (certBlock) {
+    // The list is nested under a short-form !If, so the first item is written
+    // as '- - DomainName:'. Splitting on the '- DomainName:' marker handles both
+    // the first (doubled) and subsequent entries.
+    const entries = certBlock.split(/^\s*-\s*(?:-\s*)?DomainName:/m).slice(1);
+    check('cert validation has one entry per domain', entries.length >= 2, `${entries.length} entries`);
+    for (const [i, entry] of entries.entries()) {
+      const hasZone = /HostedZoneId:/.test(entry);
+      const hasValidationDomain = /ValidationDomain:/.test(entry);
+      check(
+        `cert validation entry ${i} sets only one of HostedZoneId / ValidationDomain`,
+        !(hasZone && hasValidationDomain),
+        hasZone && hasValidationDomain ? 'ACM rejects both together' : '',
+      );
+      check(
+        `cert validation entry ${i} resolves a hosted zone`,
+        hasZone,
+        'no HostedZoneId means ACM cannot write the validation record',
+      );
+    }
+  }
 
   // A hosted zone reference must come from the zone resource or a parameter.
   const zoneParam = tpl.Parameters?.ExistingHostedZoneId !== undefined;

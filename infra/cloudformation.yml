@@ -126,14 +126,15 @@ Resources:
       SubjectAlternativeNames:
         - !Sub 'www.${DomainName}'
       ValidationMethod: DNS
+      # ACM accepts EITHER HostedZoneId OR ValidationDomain for each name, never
+      # both - supplying both is rejected outright. HostedZoneId is the
+      # stronger option because it lets ACM write the validation records itself.
       DomainValidationOptions: !If
         - CanManageDns
         - - DomainName: !Ref DomainName
             HostedZoneId: !If [CreateZone, !Ref HostedZone, !Ref ExistingHostedZoneId]
-            ValidationDomain: !Ref DomainName
           - DomainName: !Sub 'www.${DomainName}'
             HostedZoneId: !If [CreateZone, !Ref HostedZone, !Ref ExistingHostedZoneId]
-            ValidationDomain: !Ref DomainName
         - !Ref AWS::NoValue
 
   # ── CloudFront ─────────────────────────────────────────────────────────────
@@ -152,6 +153,8 @@ Resources:
     Type: AWS::CloudFront::ResponseHeadersPolicy
     Properties:
       ResponseHeadersPolicyConfig:
+        # CloudFront accepts only alphanumerics, dashes and underscores in a
+        # policy name, so the dots in the domain must be replaced.
         Name: !Sub '${DomainName}-cv-headers'
         SecurityHeadersConfig:
           ContentTypeOptions:
@@ -263,8 +266,11 @@ Resources:
       Url: https://token.actions.githubusercontent.com
       ClientIdList:
         - sts.amazonaws.com
-      # Optional for this well-known provider; AWS trusts GitHub's leaf.
-      ThumbprintList: []
+      # IAM still requires at least one thumbprint. This is the well-known leaf
+      # for token.actions.githubusercontent.com, published by GitHub. IAM no
+      # longer uses it for trust decisions, but the field cannot be empty.
+      ThumbprintList:
+        - 6938fd4d98bab03faadb97b34396831e3780aea1
 
   # Scoped to this repo AND this branch. A job on any other branch, or a pull
   # request from a fork, cannot assume this role.

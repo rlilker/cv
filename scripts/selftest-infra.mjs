@@ -89,6 +89,32 @@ const faults = [
     expect: 'S3 bucket retained on stack delete',
     mutate: (s) => s.replace(/^ {4}DeletionPolicy: Retain\r?\n/m, ''),
   },
+  // The three faults below caused a real rollback of the cv-site stack: every
+  // one passed the validator at the time, so each needs a proof it is caught.
+  {
+    name: 'CloudFront name containing dots (400 from CloudFront)',
+    expect: 'name is [A-Za-z0-9_-] safe',
+    mutate: (s) => s.replace('-cv-headers', '-cv.headers'),
+  },
+  {
+    name: 'OIDC provider with an empty thumbprint list (400 from IAM)',
+    expect: 'OIDC provider has at least one thumbprint',
+    mutate: (s) => s.replace(/^[ \t]*-[ \t]*6938fd4d98bab03faadb97b34396831e3780aea1[ \t]*\r?\n/m, ''),
+  },
+  {
+    name: 'OIDC thumbprint that is not a SHA-1 fingerprint (400 from IAM)',
+    expect: 'OIDC thumbprints look like SHA-1 fingerprints',
+    mutate: (s) => s.replace('6938fd4d98bab03faadb97b34396831e3780aea1', 'not-a-real-thumbprint'),
+  },
+  {
+    name: 'cert validation setting both HostedZoneId and ValidationDomain (400 from ACM)',
+    expect: 'only one of HostedZoneId / ValidationDomain',
+    mutate: (s) =>
+      s.replace(
+        /(^ {12}HostedZoneId: !If \[CreateZone, !Ref HostedZone, !Ref ExistingHostedZoneId\]\r?\n)( {10}- DomainName: !Sub 'www\.\$\{DomainName\}')/m,
+        '$1            ValidationDomain: !Ref DomainName\n$2',
+      ),
+  },
 ];
 
 let failures = 0;
@@ -112,8 +138,12 @@ try {
     }
     writeFileSync(tplPath, mutated, 'utf8');
     const { failed, out } = runValidator();
-    const escaped = fault.expect.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    line(failed && new RegExp(`FAIL\\s+${escaped}`).test(out), `caught: ${fault.name}`);
+    // The check label is printed as "FAIL  <label>", so the expected text has to
+    // appear somewhere in a failing line rather than immediately after FAIL.
+    const flagged = out
+      .split(/\r?\n/)
+      .some((l) => l.includes('FAIL') && l.includes(fault.expect));
+    line(failed && flagged, `caught: ${fault.name}`);
   }
 } finally {
   writeFileSync(tplPath, original, 'utf8');
