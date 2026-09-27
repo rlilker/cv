@@ -67,6 +67,20 @@ Parameters:
       (e.g. Z1234567890ABC). The stack then creates the DNS records and the
       certificate validates automatically. Leave empty otherwise.
 
+Mappings:
+  # CloudFront resource names accept only [A-Za-z0-9_-], so a domain containing
+  # dots cannot be interpolated into them directly. CloudFormation has no
+  # string-replace function, so the safe form of each domain is declared here
+  # and referenced with FindInMap. Adding a domain means adding a block.
+  #
+  # A Mappings section is always three levels deep - map name, then a key, then
+  # a second key. A two-level version is rejected outright with "Every Mappings
+  # member <key> must be a map", which is why the value sits under `Name`
+  # instead of being written directly against the domain.
+  SanitizedDomain:
+    ryanlilker.com:
+      Name: ryanlilker-com
+
 Conditions:
   UseExplicitBucketName: !Not [!Equals [!Ref BucketName, '']]
   CreateZone: !Equals [!Ref CreateHostedZone, 'true']
@@ -144,7 +158,13 @@ Resources:
     Type: AWS::CloudFront::OriginAccessControl
     Properties:
       OriginAccessControlConfig:
-        Name: !Sub '${DomainName}-cv-oac'
+        # CloudFront names accept only [A-Za-z0-9_-]. A domain contains dots, so
+        # 'ryanlilker.com-cv-oac' is rejected with a 400. The safe form comes
+        # from the SanitizedDomain mapping rather than a hard-coded string, so it
+        # cannot drift from the DomainName parameter.
+        Name: !Sub
+          - '${Safe}-cv-oac'
+          - Safe: !FindInMap [SanitizedDomain, !Ref DomainName, Name]
         Description: OAC for the static site S3 origin
         OriginAccessControlOriginType: s3
         SigningBehavior: always
@@ -154,9 +174,10 @@ Resources:
     Type: AWS::CloudFront::ResponseHeadersPolicy
     Properties:
       ResponseHeadersPolicyConfig:
-        # CloudFront accepts only alphanumerics, dashes and underscores in a
-        # policy name, so the dots in the domain must be replaced.
-        Name: !Sub '${DomainName}-cv-headers'
+        # Same [A-Za-z0-9_-] restriction as the origin access control name above.
+        Name: !Sub
+          - '${Safe}-cv-headers'
+          - Safe: !FindInMap [SanitizedDomain, !Ref DomainName, Name]
         SecurityHeadersConfig:
           ContentTypeOptions:
             Override: true

@@ -89,11 +89,43 @@ const faults = [
     expect: 'S3 bucket retained on stack delete',
     mutate: (s) => s.replace(/^ {4}DeletionPolicy: Retain\r?\n/m, ''),
   },
-  // The three faults below caused a real rollback of the cv-site stack: every
-  // one passed the validator at the time, so each needs a proof it is caught.
+  // Both of these caused a real rollback of the cv-site stack, twice, because
+  // the validator looked past them. Each is a distinct trap:
+  //   - the ${...} placeholder was replaced with a safe token, hiding the fact
+  //     that the real domain contains dots;
+  //   - the two-argument !Sub form parses to an array, not a string, so the
+  //     string-only check found nothing to inspect and silently passed.
+  {
+    name: 'CloudFront name built directly from ${DomainName} (400 from CloudFront)',
+    expect: 'name expands to a legal value',
+    mutate: (s) =>
+      s.replace(
+        /Name: !Sub\s*\r?\n\s*- '\$\{Safe\}-cv-headers'\s*\r?\n\s*- Safe: !FindInMap \[SanitizedDomain, !Ref DomainName, Name\]/,
+        "Name: !Sub '${DomainName}-cv-headers'",
+      ),
+  },
+  {
+    name: 'OAC name built directly from ${DomainName} (400 from CloudFront)',
+    expect: 'name expands to a legal value',
+    mutate: (s) =>
+      s.replace(
+        /Name: !Sub\s*\r?\n\s*- '\$\{Safe\}-cv-oac'\s*\r?\n\s*- Safe: !FindInMap \[SanitizedDomain, !Ref DomainName, Name\]/,
+        "Name: !Sub '${DomainName}-cv-oac'",
+      ),
+  },
+  {
+    name: 'SanitizedDomain mapping missing the domain row (FindInMap would fail)',
+    expect: 'SanitizedDomain mapping exists for the domain',
+    mutate: (s) => s.replace(/^ {4}ryanlilker\.com:$/m, '    example.invalid:'),
+  },
+  {
+    name: 'SanitizedDomain written with only two levels (rejected by CloudFormation)',
+    expect: 'SanitizedDomain mapping is three levels deep',
+    mutate: (s) => s.replace(/^ {6}Name: (\S+)$/m, '      $1'),
+  },
   {
     name: 'CloudFront name containing dots (400 from CloudFront)',
-    expect: 'name is [A-Za-z0-9_-] safe',
+    expect: 'name expands to a legal value',
     mutate: (s) => s.replace('-cv-headers', '-cv.headers'),
   },
   {

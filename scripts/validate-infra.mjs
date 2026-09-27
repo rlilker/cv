@@ -142,38 +142,104 @@ if (parsed[tplRel]) {
   check('viewer certificate is SNI not a dedicated IP', cert.SslSupportMethod === 'sni-only', 'sni-only avoids ~$20/mo');
   check('minimum TLS is 1.2 or newer', /TLSv1\.[23]/.test(cert.MinimumProtocolVersion ?? ''), cert.MinimumProtocolVersion);
 
-  // CloudFront policy names allow only alphanumerics, dashes and underscores.
-  // A domain name contains dots, so 'ryanlilker.com-cv-headers' is rejected
-  // with a 400 at create time.
+  // CloudFront names accept only [A-Za-z0-9_-]. A domain contains dots, so
+  // '${DomainName}-cv-headers' expands to 'ryanlilker.com-cv-headers' and is
+  // rejected with a 400 at create time.
   //
-  // Only the Name property is constrained; Description and Comment are free
-  // text. Short-form intrinsics parse to the string '!Sub <template>', so the
-  // tag prefix has to be stripped before the name is inspected. CloudFront
-  // substitutes the domain name itself, so the check only has to look at the
-  // literal text around the ${...} placeholders.
+  // Only Name is constrained; Description and Comment are free text. Short-form
+  // intrinsics parse to the string '!Sub <template>', so the tag prefix has to
+  // be stripped. The placeholders are then replaced with their REAL values, not
+  // with a harmless token - substituting a safe placeholder is precisely what
+  // let a broken name pass this check once already.
+  const domain = tpl.Parameters?.DomainName?.Default ?? 'ryanlilker.com';
+  const subs = { DomainName: domain, Safe: 'safe-name' };
+
+  // A !Sub can be written two ways, which parse very differently:
+  //   Name: !Sub '${DomainName}-cv-headers'          -> the string "!Sub ..."
+  //   Name: !Sub ['${Safe}-cv-headers', {Safe: ...}]  -> a two-element array
+  // Only the first form was handled originally, which is why a broken name in
+  // the second form went uninspected. Handle both.
+  const subTemplate = (v) => {
+    if (typeof v === 'string') return v.replace(/^!Sub\s+/, '');
+    if (Array.isArray(v) && typeof v[0] === 'string') return v[0];
+    return null;
+  };
+
   const nameLiterals = (node, out = []) => {
     if (Array.isArray(node)) {
       node.forEach((n) => nameLiterals(n, out));
     } else if (node && typeof node === 'object') {
       for (const [k, v] of Object.entries(node)) {
-        if (k === 'Name' && typeof v === 'string') out.push(v);
-        else nameLiterals(v, out);
+        if (k === 'Name') {
+          const tpl = subTemplate(v);
+          if (tpl !== null) out.push(tpl);
+          else out.push('<<non-literal Name, cannot verify>>');
+        } else nameLiterals(v, out);
       }
     }
     return out;
   };
 
+  let sawName = 0;
   for (const [logicalId, res] of Object.entries(tpl.Resources ?? {})) {
     if (!String(res?.Type ?? '').startsWith('AWS::CloudFront::')) continue;
     for (const raw of nameLiterals(res)) {
-      const name = raw.replace(/^!Sub\s+/, '').replace(/^['"]|['"]$/g, '');
-      const literal = name.replace(/\$\{[^}]*\}/g, 'x');
+      sawName++;
+      const name = raw.replace(/^['"]|['"]$/g, '');
+      const expanded = name.replace(/\$\{([^}]*)\}/g, (_, key) => subs[key.trim()] ?? `UNRESOLVED_${key}`);
       check(
-        `CloudFront ${logicalId} name is [A-Za-z0-9_-] safe`,
-        /^[A-Za-z0-9_-]+$/.test(literal),
-        `'${literal}' contains characters CloudFront rejects (dots, spaces, colons)`,
+        `CloudFront ${logicalId} name expands to a legal value`,
+        /^[A-Za-z0-9_-]+$/.test(expanded),
+        `expands to '${expanded}', which contains characters CloudFront rejects`,
       );
     }
+  }
+  check('CloudFront resources with a Name were inspected', sawName > 0, `${sawName} found`);
+
+  // A CloudFront name must not interpolate a domain directly. FindInMap is the
+  // only supported way to get a dotted domain into a legal name, and it keeps
+  // the sanitised form in one place instead of duplicating a literal.
+  const cfn = readFileSync(resolve(root, 'infra/cloudformation.yml'), 'utf8');
+  // Collect the SanitizedDomain block line by line. A regex over the block was
+  // too fragile: it stopped at the first line whose indentation it did not
+  // expect, which silently produced an empty match and a false failure.
+  const cfnLines = cfn.split(/\r?\n/);
+  const mapStart = cfnLines.findIndex((l) => /^ {2}SanitizedDomain:\s*$/.test(l));
+  const mapLines = [];
+  if (mapStart !== -1) {
+    for (let i = mapStart + 1; i < cfnLines.length; i++) {
+      const line = cfnLines[i];
+      // The block ends at the first non-blank line indented less than 4 spaces.
+      if (line.trim() !== '' && !/^ {4}/.test(line)) break;
+      mapLines.push(line);
+    }
+  }
+  check('SanitizedDomain mapping block was found', mapStart !== -1 && mapLines.length > 0);
+  const mapBlock = mapLines.join('\n');
+  const escaped = domain.replace(/\./g, '\\.');
+  check(
+    'SanitizedDomain mapping exists for the domain',
+    new RegExp(`^ {4}${escaped}:`, 'm').test(mapBlock),
+    `no mapping row for '${domain}'; a CloudFront !FindInMap would fail at deploy`,
+  );
+  check(
+    'SanitizedDomain mapping is three levels deep',
+    new RegExp(`^ {6}Name: \\S+$`, 'm').test(mapBlock),
+    'a two-level Mappings entry is rejected with "Every Mappings member must be a map"',
+  );
+  for (const m of mapBlock.matchAll(/^ {6}Name: (.+)$/gm)) {
+    check(
+      'SanitizedDomain value is [A-Za-z0-9_-] safe',
+      /^[A-Za-z0-9_-]+$/.test(m[1].trim()),
+      `'${m[1].trim()}' contains characters CloudFront rejects`,
+    );
+  }
+  for (const m of cfn.matchAll(/Name: !Sub\s*\n\s*- '([^']*\$\{DomainName\}[^']*)'/g)) {
+    check(
+      'no CloudFront name interpolates ${DomainName} directly',
+      false,
+      `'${m[1]}' expands to '${m[1].replace('${DomainName}', domain)}'`,
+    );
   }
 
   // ACM requires at least one thumbprint per OIDC provider; an empty list is
