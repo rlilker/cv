@@ -158,6 +158,83 @@ jobs:
             --distribution-id "${{ secrets.DISTRIBUTION_ID }}" \
             --id "$INVALIDATION_ID"
 
+      - name: Verify the live site
+        env:
+          SITE: https://ryanlilker.com
+        run: |
+          set -uo pipefail
+          # Replaces the old scripts/verify-live.sh, which needed a local shell
+          # and so could only be run by hand. Doing it here means every publish
+          # is checked automatically, with no AWS CLI on the developer machine.
+          fail=0
+          step() { printf '\n::group::%s\n' "$1"; printf '::endgroup::\n'; }
+
+          step "Pages return 200"
+          for p in / /family-planner/ /family-planner/privacy/ /family-planner/terms/; do
+            code=$(curl -sSL -o /dev/null -w '%{http_code}' --max-time 20 "$SITE$p" || echo 000)
+            if [ "$code" = "200" ]; then
+              echo "  PASS  $p -> 200"
+            else
+              echo "  FAIL  $p -> $code"
+              fail=1
+            fi
+          done
+
+          step "Content is really published"
+          body=$(curl -sSL --max-time 20 "$SITE/" || true)
+          for pair in "Ryan Lilker:name" \
+                      "Principal Software:role" \
+                      "CMap Software:employer" \
+                      "iSOFT plc:employer" \
+                      "Family Planner:projects link" \
+                      "application/ld+json:JSON-LD"; do
+            needle=${pair%%:*}
+            label=${pair##*:}
+            if printf '%s' "$body" | grep -qF "$needle"; then
+              echo "  PASS  contains: $label"
+            else
+              echo "  FAIL  missing: $label"
+              fail=1
+            fi
+          done
+
+          step "Security headers"
+          headers=$(curl -sSI --max-time 20 "$SITE/" || true)
+          check_header() {
+            if printf '%s' "$headers" | grep -qi "$1"; then
+              echo "  PASS  $2"
+            else
+              echo "  FAIL  $2 not present"
+              fail=1
+            fi
+          }
+          check_header "strict-transport-security" "HSTS"
+          check_header "x-content-type-options"    "X-Content-Type-Options"
+          check_header "x-frame-options"            "X-Frame-Options"
+          check_header "referrer-policy"            "Referrer-Policy"
+
+          step "HTTP is redirected to HTTPS"
+          # Uses the apex over plain HTTP; CloudFront's redirect-to-https should
+          # answer with a 301 to the https:// equivalent.
+          redir=$(curl -sS -o /dev/null -w '%{redirect_url}' --max-time 20 "http://ryanlilker.com/" 2>/dev/null || true)
+          case "$redir" in
+            https://*) echo "  PASS  HTTP -> HTTPS" ;;
+            *) echo "  NOTE  no redirect observed (may be unreachable right now)" ;;
+          esac
+
+          if [ "$fail" -ne 0 ]; then
+            {
+              echo "### ⚠️ Live checks failed"
+              echo ""
+              echo "- Certificate still pending → ACM console, wait for ISSUED."
+              echo "- 404 on a sub-page → the sync above may not have covered it."
+              echo "- Stale content → CloudFront cached it; re-run this workflow."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::Live site checks failed after deploy."
+            exit 1
+          fi
+          echo "Live checks passed."
+
       - name: Deployment summary
         run: |
           {

@@ -12,9 +12,9 @@
     "outline": "node scripts/outline-page.mjs",
     "validate:infra": "node scripts/validate-infra.mjs",
     "selftest:infra": "node scripts/selftest-infra.mjs",
-    "diag": "bash scripts/diag-env.sh",
+    "check:shell": "node scripts/check-workflow-shell.mjs",
     "check": "astro check",
-    "test": "npm run build && npm run verify && npm run validate:infra && npm run selftest:infra",
+    "test": "npm run build && npm run verify && npm run validate:infra && npm run selftest:infra && npm run check:shell",
     "preview": "astro preview"
   },
   "dependencies": {

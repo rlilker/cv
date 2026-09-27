@@ -28,6 +28,7 @@ template.
 
 - [Why this stack](#why-this-stack)
 - [Running it locally](#running-it-locally)
+- [Principles](#principles)
 - [Editing the CV](#editing-the-cv)
 - [One-time AWS setup](#one-time-aws-setup)
 - [GitHub configuration](#github-configuration)
@@ -86,14 +87,16 @@ npm run build        # build to dist/
 npm run preview      # serve the built dist/ locally
 npm run verify       # assert dist/ actually contains the CV data
 npm run validate:infra   # lint the CloudFormation + workflow YAML
-npm test             # build + verify + validate, what CI runs
+npm run selftest:infra   # prove the validator catches known faults
+npm run check:shell      # bash -n every run: block in the workflows
+npm test             # all of the above, exactly what CI runs
 ```
 
-### The two validation scripts
+### The test suite
 
 Astro will cheerfully report a successful build for a page that is missing half
-its content — a malformed data file fails silently as "no roles found". Both
-scripts exist to catch that class of mistake:
+its content — a malformed data file fails silently as "no roles found". These
+scripts catch that class of mistake:
 
 - `scripts/verify-build.mjs` reads the built HTML for all four pages and asserts
   every employer, date, bullet point, skill group, interest, app section and
@@ -103,10 +106,45 @@ scripts exist to catch that class of mistake:
   workflows, then checks every `!Ref` and `Condition:` resolves, and that the
   security-critical settings (public access block, HTTPS redirect, OAC, branch-
   scoped OIDC trust) are set.
+- `scripts/selftest-infra.mjs` injects each known past fault into a copy of the
+  template and asserts the validator catches it. A validator that never fails is
+  worse than none, because it looks like safety.
+- `scripts/check-workflow-shell.mjs` runs `bash -n` over every `run:` block in
+  the workflows. Valid YAML can still hide a shell quoting bug that only appears
+  on the runner.
 
-Both run in CI and fail the deploy if they do not pass. `npm run outline`
-prints a text outline of every built page, which is handy for reviewing
-structure without opening a browser.
+All four run in `npm test`, which is what the **Check** workflow runs on every
+pull request. The live-site checks run inside the **Deploy** workflow after
+publishing, so a bad release is caught without anyone visiting the site.
+
+`npm run outline` prints a text outline of every built page, which is handy for
+reviewing structure without opening a browser.
+
+---
+
+## Principles
+
+A few rules that keep this project from growing sideways. They are worth
+protecting even when they make a task slightly harder.
+
+1. **Nothing is deployed from a development machine.** The only AWS command ever
+   run locally is the one-time `cloudformation deploy`. After that, `git push` is
+   the entire release process. If a change seems to need a local deploy step, it
+   belongs in `.github/workflows/deploy.yml` instead.
+2. **No shell scripts.** Every script in `scripts/` is Node and uses only the
+   standard library or an existing dependency. A bash script needs a bash, which
+   Windows does not have by default, and every one of them becomes a script that
+   only one machine can run.
+3. **Prefer deleting to maintaining.** A script that exists only to work around a
+   local environment is worse than no script, because it is still there to
+   rot.
+4. **Tests stay, and they run in CI.** Simplicity is not a licence to skip
+   checks — the checks are what make the simple design safe to trust. If a check
+   needs a local shell to run, rewrite it in Node and run it in a workflow.
+5. **One region.** Everything is us-east-1 because CloudFront requires an ACM
+   certificate from there. Splitting regions would double the setup for no
+   benefit.
+
 
 ---
 
@@ -188,53 +226,29 @@ aws sts get-caller-identity
 
 ### Deploy
 
-```bash
-bash scripts/deploy.sh
+One command, run once. After this you never deploy from this machine again.
+
+```powershell
+aws cloudformation deploy `
+  --template-file infra/cloudformation.yml `
+  --stack-name cv-site `
+  --region us-east-1 `
+  --capabilities CAPABILITY_NAMED_IAM `
+  --parameter-overrides DomainName=ryanlilker.com ExistingHostedZoneId=Z0607726171RS20N60UPP
 ```
 
-> **Running this from WSL?** It works. The script resolves `aws` and `gh` by
-> absolute path, because WSL translates `C:\Program Files\Amazon\AWSCLIV2`
-> into a PATH entry containing a space, which Linux cannot split correctly — so
-> both tools run fine but are not resolvable by name. The script detects this
-> and says so rather than failing with "not on PATH".
+> `--capabilities CAPABILITY_NAMED_IAM` is not a permission you are granting.
+> It tells CloudFormation you accept that the template creates IAM resources
+> with explicit names — the OIDC provider and the deploy role.
 >
-> To check your environment at any time: `npm run diag`
+> `--region us-east-1` is deliberate and not easily changed: **CloudFront only
+> accepts ACM certificates from us-east-1.** A certificate in any other region
+> is rejected. CloudFront, IAM and Route 53 are global anyway, and S3 there is
+> not more expensive because S3→CloudFront transfer is free.
 
-That single command will:
-
-1. confirm your credentials work, and print the account id
-2. look for an existing Route 53 hosted zone for `ryanlilker.com`
-3. create the stack (3–8 minutes) — S3, CloudFront, ACM certificate, OIDC
-   provider, deploy role
-4. set the four GitHub secrets and variables from the stack outputs
-5. wait for the ACM certificate to reach `ISSUED`
-
-Everything is created in **us-east-1**, deliberately: CloudFront only accepts ACM
-certificates from that region. CloudFront, IAM and Route 53 are global anyway,
-and S3 there is not more expensive because S3→CloudFront transfer is free.
-
-Override anything if needed:
-
-```bash
-AWS_PROFILE=prod DOMAIN=ryanlilker.com bash scripts/deploy.sh
-```
-
-### The two Route 53 cases
-
-This is the only part that may need a manual step. The script tells you which
-case you are in.
-
-**You already have a Route 53 zone in this account** (most likely). The script
-detects it and passes the zone id to the stack, which then writes the A alias
-records for you. Nothing to do by hand.
-
-**No zone in this account.** The stack creates one, but your domain's
-nameservers must be pointed at Route 53 before the certificate can validate:
-
-1. Read the four nameservers from the `HostedZone` resource in the stack.
-2. At your registrar, replace the domain's nameservers with those four.
-3. Wait for propagation (minutes to a few hours). ACM then issues the
-   certificate automatically — no manual validation records needed.
+The stack takes 3–8 minutes and creates the S3 bucket, CloudFront distribution,
+ACM certificate, OIDC provider and deploy role. Everything rolls back cleanly if
+any step fails.
 
 ### Then publish
 
@@ -242,22 +256,9 @@ nameservers must be pointed at Route 53 before the certificate can validate:
 git push origin main
 ```
 
-The Deploy workflow builds the site, verifies it, syncs to S3 and invalidates
-CloudFront. Watch it in the Actions tab.
-
-### Verify it is really live
-
-```bash
-bash scripts/verify-live.sh
-```
-
-This needs only `curl` — no AWS access. It checks reachability, TLS, the
-HTTP→HTTPS redirect, that all four pages return 200, that the CV data is
-actually present in the HTML, that security headers are set, and that fonts are
-self-hosted. On failure it prints the likely cause.
-
-You can also view the site before DNS is configured, using the
-`CloudFrontDomain` stack output — that works over HTTPS immediately.
+That is the whole release process. The Deploy workflow builds, verifies, syncs
+to S3, invalidates CloudFront, and then checks the live site. Watch it in the
+Actions tab.
 
 ### Tearing it down
 
@@ -272,7 +273,8 @@ with `aws s3 rb s3://<bucket> --force` if you really want it gone.
 
 ## GitHub configuration
 
-`deploy.sh` sets these for you. To do it by hand, or to change them later:
+Set these once, by hand (Settings → Secrets and variables → Actions). The
+values come from the stack outputs:
 
 **Secrets** (Settings → Secrets and variables → Actions)
 
@@ -418,11 +420,18 @@ build-time fetching gets you the same result for free.
 │   └── styles/global.css    design tokens
 ├── public/                   favicon, robots.txt, manifest
 ├── infra/cloudformation.yml S3 + CloudFront + ACM + OIDC
-├── .github/workflows/deploy.yml
+├── .github/workflows/
+│   ├── check.yml           tests on every PR
+│   └── deploy.yml          build + publish + verify on main
 └── scripts/
     ├── verify-build.mjs
-    └── validate-infra.mjs
+    ├── validate-infra.mjs
+    ├── selftest-infra.mjs
+    └── check-workflow-shell.mjs
 ```
+
+Everything in `scripts/` is Node and runs the same way on Windows, macOS and
+Linux. There are no shell scripts and no local deploy tooling, by design.
 
 ### Performance notes
 

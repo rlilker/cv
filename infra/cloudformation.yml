@@ -13,7 +13,8 @@
 #  Cost: Route 53 hosted zone ~$0.50/mo. Everything else is inside the free
 #  tier at CV-site traffic levels.
 #
-#  Prefer the script:  bash scripts/deploy.sh
+#  Deploy the stack with one aws command, then never again from this machine.
+#  Everything after this is handled by .github/workflows/deploy.yml.
 # =============================================================================
 
 AWSTemplateFormatVersion: '2010-09-09'
