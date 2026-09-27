@@ -1,0 +1,18 @@
+# Normalise line endings so builds are reproducible across Windows and Linux.
+# Source and config are stored with LF; Git converts on checkout on Windows.
+* text=auto eol=lf
+
+# Windows scripts genuinely need CRLF.
+*.cmd  text eol=crlf
+*.bat  text eol=crlf
+*.ps1  text eol=crlf
+
+# Binary assets - never touch line endings.
+*.woff2 binary
+*.woff  binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.pdf   binary

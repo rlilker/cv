@@ -1,0 +1,261 @@
+---
+import { roles, totalHighlights } from '../data/cv';
+import SectionTitle from './SectionTitle.astro';
+
+/** First year of the earliest role, e.g. "1997". */
+const firstYear = roles[roles.length - 1]?.start.split(' ')[1] ?? '';
+---
+
+<section class="section experience" id="experience">
+  <SectionTitle title="Experience" meta={`${roles.length} roles · ${firstYear} to present`} />
+
+  <ol class="timeline">
+    {
+      roles.map((role, index) => (
+        <li class="role" id={role.id}>
+          {/* Left rail: a node per role on a continuous line. */}
+          <div class="rail" aria-hidden="true">
+            <span class="node" />
+            {index < roles.length - 1 && <span class="line" />}
+          </div>
+
+          <article class="role-body">
+            <header class="role-head">
+              <div class="role-titles">
+                <h3 class="role-title">{role.title}</h3>
+                <p class="role-company">
+                  {role.company}
+                  {role.type && <span class="role-type">{role.type}</span>}
+                </p>
+              </div>
+              <p class="role-dates">
+                <span>{role.start}</span>
+                <span class="role-dash" aria-hidden="true">–</span>
+                <span>{role.end}</span>
+              </p>
+            </header>
+
+            <p class="role-summary">{role.summary}</p>
+
+            {role.highlights.length > 0 && (
+              <ul class="role-points">
+                {role.highlights.map((point) => (
+                  <li>{point}</li>
+                ))}
+              </ul>
+            )}
+
+            {role.stack && role.stack.length > 0 && (
+              <ul class="role-stack">
+                {role.stack.map((tech) => (
+                  <li class="tag">{tech}</li>
+                ))}
+              </ul>
+            )}
+          </article>
+        </li>
+      ))
+    }
+  </ol>
+</section>
+
+<style>
+  .experience {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 40px;
+    width: 100%;
+  }
+
+  .timeline {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .role {
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr);
+    gap: 0 20px;
+    padding-bottom: 44px;
+    /* last item has no trailing line, so drop the leftover space */
+    scroll-margin-top: 130px;
+  }
+
+  .role:last-child {
+    padding-bottom: 0;
+  }
+
+  /* ── Timeline rail ───────────────────────────────────────────────────── */
+
+  .rail {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 7px;
+  }
+
+  .node {
+    width: 11px;
+    height: 11px;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 4px var(--bg);
+    z-index: 1;
+  }
+
+  .line {
+    position: absolute;
+    top: 18px;
+    bottom: -44px;
+    width: 1.5px;
+    background: rgba(0, 0, 0, 0.12);
+  }
+
+  /* ── Role body ───────────────────────────────────────────────────────── */
+
+  .role-body {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
+  }
+
+  .role-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px 32px;
+  }
+
+  .role-titles {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 0;
+  }
+
+  .role-title {
+    font-size: 22px;
+    font-weight: 600;
+    line-height: 1.25;
+    letter-spacing: -0.01em;
+  }
+
+  .role-company {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    font-size: 17px;
+    font-weight: 400;
+    color: var(--ink-soft);
+  }
+
+  .role-type {
+    padding: 3px 10px;
+    border-radius: var(--radius-pill);
+    background: rgba(88, 86, 214, 0.1);
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+  }
+
+  .role-dates {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+    padding: 4px 12px;
+    border-radius: 8px;
+    background: var(--surface);
+    box-shadow: var(--shadow-btn);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--ink-soft);
+    white-space: nowrap;
+  }
+
+  .role-dash {
+    color: var(--ink-muted);
+  }
+
+  .role-summary {
+    max-width: 70ch;
+    font-size: 17px;
+    line-height: 1.5;
+    color: var(--ink);
+  }
+
+  /* ── Bullets ─────────────────────────────────────────────────────────── */
+
+  .role-points {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    max-width: 92ch;
+  }
+
+  .role-points li {
+    position: relative;
+    padding-left: 20px;
+    font-size: 16px;
+    line-height: 1.55;
+    color: var(--ink-soft);
+  }
+
+  .role-points li::before {
+    content: '';
+    position: absolute;
+    left: 2px;
+    top: 0.62em;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.28);
+  }
+
+  /* ── Tech tags ───────────────────────────────────────────────────────── */
+
+  .role-stack {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 2px;
+  }
+
+  .tag {
+    padding: 5px 12px;
+    border-radius: var(--radius-pill);
+    background: var(--surface);
+    box-shadow: var(--shadow-btn);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink-soft);
+    white-space: nowrap;
+  }
+
+  /* ── Responsive ──────────────────────────────────────────────────────── */
+
+  @media (max-width: 720px) {
+    .role {
+      grid-template-columns: 20px minmax(0, 1fr);
+      gap: 0 14px;
+    }
+
+    .role-head {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .role-dates {
+      order: -1;
+    }
+  }
+</style>
+

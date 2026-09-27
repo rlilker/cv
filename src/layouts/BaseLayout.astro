@@ -1,0 +1,96 @@
+---
+/**
+ * Self-hosted variable font.
+ *
+ * Bundling the font (rather than linking Google Fonts) means:
+ *   - no third-party request on every page view,
+ *   - no visitor data leaving the UK when a recruiter opens the CV,
+ *   - one less DNS lookup and a faster first paint.
+ *
+ * The package's `index.css` declares every subset, but each `@font-face` is
+ * gated by `unicode-range`, so a browser only ever downloads the Latin file it
+ * actually needs — the other ~50 KB of Cyrillic/Greek/Vietnamese woff2 files
+ * ship to S3 but are never requested.
+ */
+import '@fontsource-variable/roboto-flex';
+import '../styles/global.css';
+import { profile } from '../data/cv';
+
+interface Props {
+  title: string;
+  description: string;
+}
+
+const { title, description } = Astro.props;
+
+const canonical = new URL(Astro.url.pathname, Astro.site);
+const ogImage = new URL('/og-image.png', Astro.site);
+---
+
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+
+    <!-- Open Graph / Twitter -->
+    <meta property="og:type" content="profile" />
+    <meta property="og:site_name" content={profile.name} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImage} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
+
+    <!-- Icons / PWA -->
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="theme-color" content="#f7f7f7" />
+
+    <!-- Keep the machine-readable profile in sync with the visible content.
+         This is a static build today; the same shape is what an API would
+         return later, so swapping the source does not change the contract. -->
+    <script type="application/ld+json" set:html={JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'Person',
+      name: profile.name,
+      jobTitle: profile.role,
+      email: `mailto:${profile.email}`,
+      telephone: profile.phone,
+      url: Astro.site?.toString(),
+      address: { '@type': 'PostalAddress', addressLocality: 'Manchester', addressCountry: 'GB' },
+      sameAs: [profile.linkedin, profile.github],
+    })} />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <slot />
+  </body>
+</html>
+
+<style>
+  .skip-link {
+    position: absolute;
+    top: -100px;
+    left: 16px;
+    z-index: 100;
+    padding: 12px 20px;
+    border-radius: var(--radius-pill);
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-weight: 500;
+    transition: top var(--dur) var(--ease);
+  }
+
+  .skip-link:focus {
+    top: 16px;
+  }
+</style>

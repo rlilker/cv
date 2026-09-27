@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://ryanlilker.com/sitemap-index.xml

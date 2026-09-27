@@ -1,0 +1,296 @@
+{
+  "profile": {
+    "name": "Ryan Lilker",
+    "firstName": "Ryan",
+    "role": "Principal Software Developer",
+    "tagline": "Full Stack Development",
+    "location": "Manchester, UK",
+    "timezone": "Europe/London",
+    "email": "ryan.lilker@gmail.com",
+    "phone": "07734567119",
+    "linkedin": "https://www.linkedin.com/in/ryanlilker/",
+    "github": "https://github.com/rlilker",
+    "yearsExperience": 25,
+    "intro": [
+      "Ryan is a Principal Software Developer based in Manchester, UK, with 25 years of experience building and running production software end to end.",
+      "He has led teams of up to 12 across four squads, taken a SaaS product from its first client to 400+ customers and £7m ARR, and moved architecture from on-premise servers to managed hosting and then the cloud. He cares about what keeps software healthy: test coverage, code quality, pipelines nobody has to babysit, and documentation that outlives the project."
+    ],
+    "summary": "A Principal Software Developer with 25 years of experience and a proven record of achievement, seeks position in Full Stack Development. Capable of making a significant contribution to the profitability of any employer. Excellent team worker who communicates effectively at all levels and remains confident and good humoured under pressure."
+  },
+  "roles": [
+    {
+      "id": "made-tech",
+      "title": "Lead Software Engineer",
+      "company": "Made Tech",
+      "type": "Contract",
+      "start": "August 2022",
+      "end": "November 2022",
+      "summary": "Short contract bridging into the cloud and modern tooling, picking up a wide new stack quickly.",
+      "highlights": [
+        "Built on existing skills, learning AWS Cloud, Terraform, Ruby on Rails including unit testing in RSpec, Python, Apache Spark, and Elixir.",
+        "Designed, created, and implemented a new Google Add-On utilising Google App Scripts using TypeScript, Rollup.js and Babel, with unit testing in Jest."
+      ],
+      "stack": ["AWS", "Terraform", "Ruby on Rails", "RSpec", "Python", "Apache Spark", "Elixir", "TypeScript", "App Scripts"]
+    },
+    {
+      "id": "cmap-software",
+      "title": "Principal Software Developer",
+      "company": "CMap Software",
+      "start": "March 2010",
+      "end": "July 2022",
+      "summary": "Principal engineer and tech lead on a field-service SaaS platform — from a single client to 400+ customers, 22,000 users and £7m ARR.",
+      "highlights": [
+        "Developed a new SaaS product utilising the latest technologies — starting with one client and working up to 400+ clients and 22,000 users worldwide generating £7m ARR.",
+        "Created and implemented departmental processes and documentation such as coding standards and practices, architectural guidelines, source control branching strategies, product documentation, and pull requests/peer reviews — saving time and improving overall quality.",
+        "Successfully instituted Unit Testing and TDD on a large legacy codebase (500k lines) from 0% coverage to 25%+ over 2 years.",
+        "Automated the CI/CD pipelines to build and run unit tests utilising Jenkins and VSTS/Azure DevOps, removing the need for error-prone manual processes.",
+        "Transitioned from a Waterfall based process to Agile and then Kanban – releasing builds nightly.",
+        "Established static analysis tooling (Sonarqube), leading to improved metrics on code quality and security.",
+        "Utilised and directly responsible for Source Control systems, moving from SourceSafe, to TFS, to Git, to Azure DevOps repositories.",
+        "Database development including designing, indexing, updating, and querying — resulting in an improved user experience.",
+        "Gained experience in ASP.NET MVC (2-5 including Razor), OpenXML, JQuery, Redis, Dapper, LINQ, TypeScript, and SignalR.",
+        "Developed and maintained mobile applications using Xamarin Forms, Ionic Framework (solo projects), and React Native.",
+        "Oversaw and facilitated daily Scrum meetings incorporating planning sessions and retrospectives on large themed seasonal releases.",
+        "Direct involvement in transitioning from, and management of, an on-site solution to managed server, then cloud-based architecture using Microsoft Azure.",
+        "Progressed from Software Developer, to Senior Software Developer, to Team Lead, to Principal Software Developer.",
+        "Mentored and line managed a team of 12 developers across 4 squads at various levels of skill and experience.",
+        "Interacted regularly with clients at all levels, third parties including outsourced development teams, department heads and the board during all stages of product development, and reported to the board monthly on departmental performance."
+      ],
+      "stack": ["ASP.NET MVC", "C#", ".NET", "TypeScript", "jQuery", "SignalR", "Redis", "Dapper", "SQL Server", "Azure", "Jenkins", "Azure DevOps", "SonarQube"]
+    },
+    {
+      "id": "intec",
+      "title": "Developer",
+      "company": "Intec",
+      "start": "September 2009",
+      "end": "March 2010",
+      "summary": "Reporting work for a Delphi-based software house.",
+      "highlights": [
+        "Successfully implemented a custom report builder utilising ASP.NET and Crystal Reports for a Delphi-based software house."
+      ],
+      "stack": ["ASP.NET", "Crystal Reports"]
+    },
+    {
+      "id": "athletic-logic",
+      "title": "Developer",
+      "company": "Athletic Logic",
+      "start": "July 2008",
+      "end": "September 2009",
+      "summary": "Owned all web application development and the SDLC for sports-sector clients.",
+      "highlights": [
+        "Responsible for all web-based application development and SDLC.",
+        "Increased knowledge in .NET, gaining experience in .NET 3.5 (C# and VB.NET) with SQL 2008, Silverlight including streaming media, IIS7, Windows application development, and Developer Express.",
+        "Fostered relationships with key clients, including world leading sports associations and clubs."
+      ],
+      "stack": [".NET 3.5", "C#", "VB.NET", "SQL Server 2008", "Silverlight", "IIS7"]
+    },
+    {
+      "id": "j-media",
+      "title": "Developer",
+      "company": "J-Media",
+      "start": "February 2006",
+      "end": "June 2008",
+      "summary": "Full SDLC across a portfolio of external clients for a bespoke software agency.",
+      "highlights": [
+        "Created, expanded, and maintained websites and applications for a bespoke software agency.",
+        "Direct involvement in the full SDLC and responsible for several external clients and projects.",
+        "Increased knowledge in .NET 1.1 and 2.0 (C# and VB.NET), Microsoft SQL Server 2000 and 2005 database design, development and administration.",
+        "Added experience in the generation of Office documents using Office Automation in .NET, Microsoft Sharepoint, AJAX, COM+, Dundas Charts and XML.",
+        "Supported and advised customers by email, telephone and face-to-face."
+      ],
+      "stack": [".NET 1.1/2.0", "C#", "VB.NET", "SQL Server 2000/2005", "SharePoint", "AJAX", "XML"]
+    },
+    {
+      "id": "affinity-healthcare",
+      "title": "Software Developer",
+      "company": "Affinity Healthcare",
+      "start": "July 2005",
+      "end": "February 2006",
+      "summary": "Large scale web application for a hospital spanning two campuses.",
+      "highlights": [
+        "Developed and maintained a large scale Web Application for use by a hospital across two campuses.",
+        "Full SDLC experience from requirements gathering to software design, inception, testing and bug-fixing.",
+        "Shared responsibility in creation and maintenance of a complex relational database in SQL Server."
+      ],
+      "stack": ["SQL Server", "Web Applications"]
+    },
+    {
+      "id": "leighs-paints",
+      "title": "Technical Team Member",
+      "company": "Leigh's Paints",
+      "start": "May 2005",
+      "end": "July 2005",
+      "summary": "Port of a VB6 application to VB.NET, refactored for performance and scale.",
+      "highlights": [
+        "Worked on a new VB.Net version of an existing VB6 application for use in the laboratories and various other departments within the company, refactoring and reorganising existing code for performance and scalability."
+      ],
+      "stack": ["VB.NET", "VB6"]
+    },
+    {
+      "id": "dcml",
+      "title": "Software Developer",
+      "company": "DCML Ltd",
+      "start": "August 2002",
+      "end": "May 2005",
+      "summary": "Maintained and developed a dealership internet application used across 300+ sites.",
+      "highlights": [
+        "Responsible for the maintenance and development of an ASP (VBScript) based internet application used in over 300 car dealerships across the UK and Ireland.",
+        "Direct involvement in the full SDLC.",
+        "Gained experience with Microsoft Visual Studio.NET (C#) utilising XML, SQL Server Reporting Services, ASP.NET, Web Services and Windows applications.",
+        "Designed and maintained Microsoft SQL Server databases, with experience of stored procedures, triggers and Data Transformation Services (DTS) using T-SQL and VBScript."
+      ],
+      "stack": ["ASP", "VBScript", "C#", "ASP.NET", "SQL Server", "SSRS", "DTS", "T-SQL"]
+    },
+    {
+      "id": "isoft",
+      "title": "Senior New Media Developer",
+      "company": "iSOFT plc",
+      "start": "November 2001",
+      "end": "April 2002",
+      "summary": "Built and ran a high-specification extranet used across four continents.",
+      "highlights": [
+        "Developed and maintained an innovative and high specification extranet for use throughout the business across four continents — utilising HTML, DHTML, ASP (VBScript), JavaScript, SQL Server 7.0/2000, and VB6 (inc. ActiveX and COM).",
+        "Responsible for the training and supervision of a junior HTML developer and for all maintenance of the group website."
+      ],
+      "stack": ["HTML", "DHTML", "ASP", "VBScript", "JavaScript", "SQL Server 7.0/2000", "VB6", "COM"]
+    },
+    {
+      "id": "wax-digital",
+      "title": "Systems Developer",
+      "company": "Wax Digital Ltd",
+      "start": "March 2000",
+      "end": "October 2001",
+      "summary": "Broad web and CD-ROM software development for a digital content agency.",
+      "highlights": [
+        "Developed, modified and tested a wide range of software for use via the internet and CD-ROM utilising HTML, DHTML, ASP, VBScript, JavaScript, VBScript, VB6 and T-SQL."
+      ],
+      "stack": ["HTML", "DHTML", "ASP", "VBScript", "JavaScript", "VB6", "T-SQL"]
+    },
+    {
+      "id": "alpha-business-computers",
+      "title": "Helpdesk Support Officer",
+      "company": "Alpha Business Computers Ltd",
+      "start": "October 1999",
+      "end": "March 2000",
+      "summary": "IT helpdesk support.",
+      "highlights": []
+    },
+    {
+      "id": "blemain-group",
+      "title": "Desktop Support Technician",
+      "company": "Blemain Group Plc",
+      "start": "September 1997",
+      "end": "October 1999",
+      "summary": "Desktop support — the start of a 25 year technology career.",
+      "highlights": []
+    }
+  ],
+  "skillGroups": [
+    {
+      "id": "backend",
+      "title": "Backend & Languages",
+      "items": [
+        "C#",
+        ".NET 1.1 – 6.0",
+        "ASP.NET",
+        "ASP.NET MVC (2–5, Razor)",
+        "REST APIs & Web Services",
+        "LINQ",
+        "Ruby on Rails",
+        "Python",
+        "Elixir",
+        "T-SQL",
+        "VBScript"
+      ]
+    },
+    {
+      "id": "frontend",
+      "title": "Frontend",
+      "items": ["TypeScript", "JavaScript", "jQuery", "CSS", "LESS", "SCSS", "SASS", "SignalR", "HTML5"]
+    },
+    {
+      "id": "data",
+      "title": "Databases",
+      "items": [
+        "SQL Server 7.0 – 2016",
+        "Azure SQL",
+        "Stored Procedures",
+        "Triggers",
+        "Indexing",
+        "Backup & Restore",
+        "Redis"
+      ]
+    },
+    {
+      "id": "cloud",
+      "title": "Cloud & Infrastructure",
+      "items": ["AWS", "Microsoft Azure", "Terraform", "Apache Spark", "Managed Servers"]
+    },
+    {
+      "id": "delivery",
+      "title": "Delivery & Quality",
+      "items": [
+        "CI/CD — Jenkins",
+        "Azure DevOps",
+        "AWS CodePipeline",
+        "Unit Testing — xUnit, NUnit, Jest",
+        "TDD",
+        "Code Review & Pull Requests",
+        "Scrum & Kanban",
+        "SonarQube / SonarCloud",
+        "Google Apps Script",
+        "Rollup.js",
+        "Babel"
+      ]
+    },
+    {
+      "id": "source-control",
+      "title": "Source Control",
+      "items": ["Git", "Azure DevOps Repos", "Team Foundation Server", "SVN", "Visual SourceSafe"]
+    },
+    {
+      "id": "mobile",
+      "title": "Mobile",
+      "items": ["React Native", "Xamarin Forms", "SQLite", "Ionic Framework (Angular 2, TypeScript)"]
+    },
+    {
+      "id": "office",
+      "title": "Office & Documents",
+      "items": ["Office '97 – Office 365", "OpenXML (.NET)", "Office Automation", "Access & Macros"]
+    },
+    {
+      "id": "leadership",
+      "title": "Leadership",
+      "items": [
+        "Line Management (12 people, 4 squads)",
+        "Architecture & Code Quality",
+        "Mentoring",
+        "Client & Stakeholder Liaison",
+        "Process & Standards",
+        "Technical Support"
+      ]
+    }
+  ],
+
+  "highlights": [
+    { "value": "25", "suffix": "yrs", "label": "Development experience" },
+    { "value": "12", "suffix": "", "label": "People line managed" },
+    { "value": "400", "suffix": "+", "label": "Clients on one product" },
+    { "value": "£7m", "suffix": "", "label": "ARR generated" }
+  ],
+  "interests": [
+    "Family & friends",
+    "Reading",
+    "Guitar",
+    "Learning Spanish",
+    "Cooking",
+    "Gaming",
+    "Puzzles"
+  ],
+  "navSections": [
+    { "id": "introduction", "label": "Introduction" },
+    { "id": "experience", "label": "Experience" },
+    { "id": "skills", "label": "Skills" },
+    { "id": "interests", "label": "Interests" }
+  ]
+}

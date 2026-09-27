@@ -1,0 +1,17 @@
+{
+  "name": "Ryan Lilker — CV",
+  "short_name": "Ryan Lilker",
+  "description": "Principal Software Developer, Manchester UK.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f7f7",
+  "theme_color": "#5856d6",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

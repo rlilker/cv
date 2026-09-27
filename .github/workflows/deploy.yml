@@ -1,0 +1,133 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  Deploy: build the Astro site and publish it to S3 + CloudFront.
+#
+#  Triggers on every push to `main`, and can be run by hand from the Actions
+#  tab. Authentication uses GitHub's OIDC provider, so there are no long-lived
+#  AWS access keys stored as repository secrets — the workflow exchanges a
+#  short-lived GitHub token for the deploy role created by
+#  infra/cloudformation.yml.
+#
+#  Required repository secrets (Settings -> Secrets and variables -> Actions):
+#    AWS_DEPLOY_ROLE_ARN  - the DeployRoleArn stack output
+#    DISTRIBUTION_ID      - the DistributionId stack output
+#
+#  The AWS_REGION is intentionally the stack's own region; the S3 bucket name
+#  is resolved from the bucket itself so the workflow needs no extra secret.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  # Allows a manual re-run from the Actions tab, e.g. after a CloudFront fix.
+  workflow_dispatch:
+
+# Cancel superseded runs so rapid pushes don't deploy out of order.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: true
+
+permissions:
+  # Required so the workflow can request an OIDC token at all.
+  id-token: write
+  contents: read
+
+jobs:
+  build-and-deploy:
+    name: Build and deploy to S3
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      # Astro can report a successful build that is missing content; this
+      # fails the deploy before anything is published.
+      - name: Verify build output
+        run: npm run verify
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Resolve bucket name
+        id: bucket
+        env:
+          # Repository variable, set once to the BucketName stack output.
+          SITE_BUCKET: ${{ vars.SITE_BUCKET }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SITE_BUCKET:-}" ]; then
+            echo "::error::Repository variable SITE_BUCKET is not set. Add it under Settings -> Secrets and variables -> Actions -> Variables."
+            exit 1
+          fi
+          if ! aws s3api head-bucket --bucket "$SITE_BUCKET" 2>/dev/null; then
+            echo "::error::Bucket '$SITE_BUCKET' not found or not accessible with the deploy role."
+            exit 1
+          fi
+          echo "name=$SITE_BUCKET" >> "$GITHUB_OUTPUT"
+
+      - name: Sync to S3
+        run: |
+          set -euo pipefail
+          BUCKET="${{ steps.bucket.outputs.name }}"
+
+          # Long-lived cache for content-hashed assets. Astro fingerprints
+          # everything under /_astro/, so these URLs change when the bytes
+          # change and can be cached forever.
+          aws s3 sync dist/ "s3://$BUCKET/" \
+            --delete \
+            --exclude "*" \
+            --include "_astro/*" \
+            --cache-control "public,max-age=31536000,immutable"
+
+          # Everything else (HTML, manifest, robots.txt) must revalidate, or
+          # an updated CV would keep serving the old copy for a year.
+          aws s3 sync dist/ "s3://$BUCKET/" \
+            --delete \
+            --exclude "_astro/*" \
+            --cache-control "public,max-age=0,must-revalidate"
+
+      - name: Invalidate CloudFront
+        run: |
+          set -euo pipefail
+          # Only /* is needed: the cached /_astro/* URLs are content-hashed and
+          # never change for the same bytes.
+          INVALIDATION_ID=$(aws cloudfront create-invalidation \
+            --distribution-id "${{ secrets.DISTRIBUTION_ID }}" \
+            --paths "/*" \
+            --query 'Invalidation.Id' \
+            --output text)
+          echo "Created invalidation $INVALIDATION_ID"
+          aws cloudfront wait invalidation-completed \
+            --distribution-id "${{ secrets.DISTRIBUTION_ID }}" \
+            --id "$INVALIDATION_ID"
+
+      - name: Deployment summary
+        run: |
+          {
+            echo "### 🚀 Deployed to S3 + CloudFront"
+            echo ""
+            echo "- **Commit:** \`${GITHUB_SHA::7}\`"
+            echo "- **Branch:** \`${GITHUB_REF_NAME}\`"
+            echo "- **By:** ${GITHUB_ACTOR}"
+            echo "- **Site:** https://ryanlilker.com/"
+            echo ""
+            echo "CloudFront is serving the new build once the invalidation completes."
+          } >> "$GITHUB_STEP_SUMMARY"

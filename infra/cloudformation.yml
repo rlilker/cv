@@ -1,0 +1,334 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  Infrastructure — CloudFormation for the cheapest viable hosting setup.
+#
+#      Route 53 (alias)  ->  CloudFront  ->  S3 (private origin)
+#
+#  Why this shape:
+#   - S3 alone is nearly free, but it serves plain HTTP only and has no CDN.
+#     A CV gets shared by email and LinkedIn, so HTTPS and edge caching matter.
+#   - CloudFront's free tier (1 TB egress/mo) dwarfs a CV site's traffic, and an
+#     ACM certificate is free, so the running cost is effectively just the
+#     Route 53 hosted zone (~$0.50/mo).
+#   - The bucket stays fully private: CloudFront reaches it through an Origin
+#     Access Control, so the only way in is through the distribution.
+#   - The GitHub OIDC provider + deploy role mean CI needs *no* stored AWS keys.
+#
+#  Deploy from the AWS console (CloudFormation -> Create stack -> upload), or:
+#      aws cloudformation deploy \
+#        --template-file infra/cloudformation.yml \
+#        --stack-name cv-site \
+#        --capabilities CAPABILITY_NAMED_IAM \
+#        --parameter-overrides DomainName=ryanlilker.com GitHubOrg=rlilker
+#
+#  See README -> "One-time AWS setup".
+# ─────────────────────────────────────────────────────────────────────────────
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  Static CV site for ryanlilker.com - S3 origin behind CloudFront, with a
+  GitHub Actions OIDC deploy role.
+
+Parameters:
+  DomainName:
+    Type: String
+    Default: ryanlilker.com
+    Description: Apex domain to serve.
+
+  BucketName:
+    Type: String
+    Default: ''
+    Description: >-
+      Optional explicit S3 bucket name. Leave empty to derive one from the
+      domain name.
+
+  GitHubOrg:
+    Type: String
+    Default: rlilker
+    Description: GitHub user or organisation that owns the repo.
+
+  GitHubRepo:
+    Type: String
+    Default: cv
+    Description: Repository name, used to scope the OIDC trust policy.
+
+  SubjectBranch:
+    Type: String
+    Default: main
+    Description: Branch allowed to deploy. Keep to 'main'.
+
+  CreateHostedZone:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: >-
+      Set true only if the Route 53 hosted zone does not already exist in this
+      account. If it does exist, set false and manage the A records separately.
+
+Conditions:
+  HasBucketName: !Not [!Equals [!Ref BucketName, '']]
+  ShouldCreateHostedZone: !Equals [!Ref CreateHostedZone, 'true']
+
+Resources:
+  # ── Content bucket ────────────────────────────────────────────────────────
+
+  SiteBucket:
+    Type: AWS::S3::Bucket
+    # Retain on stack delete: losing this bucket means losing the site.
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !If [HasBucketName, !Ref BucketName, !Sub '${DomainName}-cv-site']
+      # Block all public access. CloudFront gets in via OAC, not via a public
+      # bucket policy - the difference between "private" and "looks private but
+      # has a wide-open policy sitting next to it".
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+
+  # ── CloudFront ────────────────────────────────────────────────────────────
+
+  OriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub '${DomainName}-cv-oac'
+        Description: OAC for the CV site S3 origin
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  ResponseHeadersPolicy:
+    Type: AWS::CloudFront::ResponseHeadersPolicy
+    Properties:
+      ResponseHeadersPolicyConfig:
+        Name: !Sub '${DomainName}-cv-headers'
+        SecurityHeadersConfig:
+          ContentTypeOptions:
+            Override: true
+          FrameOptions:
+            FrameOption: SAMEORIGIN
+            Override: true
+          ReferrerPolicy:
+            ReferrerPolicy: strict-origin-when-cross-origin
+            Override: true
+          StrictTransportSecurity:
+            AccessControlMaxAgeSec: 31536000
+            IncludeSubdomains: true
+            Preload: true
+            Override: true
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    DependsOn: SiteBucket
+    Properties:
+      DistributionConfig:
+        Comment: !Sub 'CV site for ${DomainName}'
+        Enabled: true
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        # PriceClass_All is deliberate: the free tier is global, and pinning to
+        # a cheaper region would only hurt UK/US visitors.
+        PriceClass: PriceClass_All
+        Origins:
+          - Id: s3-origin
+            DomainName: !GetAtt SiteBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt OriginAccessControl.Id
+            S3OriginConfig:
+              # Required by CloudFormation even when OAC is in use.
+              OriginAccessIdentity: ''
+        DefaultCacheBehavior:
+          TargetOriginId: s3-origin
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          CachedMethods: [GET, HEAD, OPTIONS]
+          # 4135ea2d-6df8-44a3-9df3-4b5a84be39ad = CachingOptimized.
+          # Ignores cookies and query strings, so every response is cacheable.
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          ResponseHeadersPolicyId: !Ref ResponseHeadersPolicy
+        # Serve index.html for unknown paths so the site still resolves if it
+        # ever grows beyond a single page.
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 10
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 10
+        ViewerCertificate:
+          AcmCertificateArn: !GetAtt Certificate.Arn
+
+  # ── TLS ───────────────────────────────────────────────────────────────────
+
+  # Must live in us-east-1 for CloudFront to use it. If deploying from another
+  # region, add ` --region us-east-1` to the deploy command, or create the
+  # certificate separately and pass its ARN in.
+  Certificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Ref DomainName
+      SubjectAlternativeNames:
+        - !Sub 'www.${DomainName}'
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        # Only meaningful when this stack also owns the zone; otherwise drop
+        # DomainValidationOptions and validate from the ACM console.
+        - DomainName: !Ref DomainName
+          HostedZoneId: !Select [0, !If [ShouldCreateHostedZone, [!Ref HostedZone], ['_ignore']]]
+          ValidationDomain: !Ref DomainName
+        - DomainName: !Sub 'www.${DomainName}'
+          HostedZoneId: !Select [0, !If [ShouldCreateHostedZone, [!Ref HostedZone], ['_ignore']]]
+          ValidationDomain: !Ref DomainName
+
+  # ── DNS ───────────────────────────────────────────────────────────────────
+
+  HostedZone:
+    Type: AWS::Route53::HostedZone
+    Condition: ShouldCreateHostedZone
+    Properties:
+      Name: !Sub '${DomainName}.'
+      HostedZoneConfig:
+        Comment: Hosted zone for the CV site
+
+  # The alias target uses the *distribution's* hosted zone id, which is
+  # CloudFront's own zone - not the Route 53 zone this template may create.
+  ApexAlias:
+    Type: AWS::Route53::RecordSet
+    Condition: ShouldCreateHostedZone
+    Properties:
+      HostedZoneId: !If [ShouldCreateHostedZone, !Ref HostedZone, !Ref AWS::NoValue]
+      Name: !Ref DomainName
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt Distribution.DomainName
+        HostedZoneId: !GetAtt Distribution.HostedZoneId
+        EvaluateTargetHealth: false
+
+  WwwAlias:
+    Type: AWS::Route53::RecordSet
+    Condition: ShouldCreateHostedZone
+    Properties:
+      HostedZoneId: !If [ShouldCreateHostedZone, !Ref HostedZone, !Ref AWS::NoValue]
+      Name: !Sub 'www.${DomainName}'
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt Distribution.DomainName
+        HostedZoneId: !GetAtt Distribution.HostedZoneId
+
+  # ── GitHub Actions OIDC ───────────────────────────────────────────────────
+
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList:
+        - sts.amazonaws.com
+      # Optional for this provider; AWS accepts the well-known GitHub leaf.
+      ThumbprintList: []
+
+  # Scoped to this repo *and* this branch. A job on any other branch, or a
+  # pull request from a fork, cannot assume this role.
+  DeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${DomainName}-cv-github-deploy'
+      Description: Assumed by GitHub Actions to publish the CV site
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com'
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                'token.actions.githubusercontent.com:aud': sts.amazonaws.com
+                'token.actions.githubusercontent.com:sub': !Sub 'repo:${GitHubOrg}/${GitHubRepo}:ref:refs/heads/${SubjectBranch}'
+      Policies:
+        - PolicyName: PublishSite
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: ListBucket
+                Effect: Allow
+                Action:
+                  - s3:ListBucket
+                  - s3:GetBucketLocation
+                Resource: !GetAtt SiteBucket.Arn
+              - Sid: ReadWriteObjects
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource: !Sub '${SiteBucket.Arn}/*'
+              - Sid: InvalidateCache
+                Effect: Allow
+                Action: cloudfront:CreateInvalidation
+                Resource: !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${Distribution}'
+
+Outputs:
+  BucketName:
+    Description: S3 bucket holding the built site
+    Value: !Ref SiteBucket
+
+  DistributionId:
+    Description: Set as the DISTRIBUTION_ID GitHub secret
+    Value: !Ref Distribution
+
+  DeployRoleArn:
+    Description: Set as the AWS_DEPLOY_ROLE_ARN GitHub secret
+    Value: !GetAtt DeployRole.Arn
+
+  OidcProviderArn:
+    Description: Reference only - no action needed
+    Value: !Ref GitHubOidcProvider
+
+  CloudFrontDomain:
+    Description: The default cloudfront.net hostname (works before DNS validates)
+    Value: !GetAtt Distribution.DomainName
+
+  CertificateArn:
+    Description: ACM certificate in use
+    Value: !GetAtt Certificate.Arn
+
+  SiteUrl:
+    Description: Where the site will be live once DNS has validated
+    Value: !Sub 'https://${DomainName}/'
+
+  Note:
+    Description: Remaining manual steps
+    Value: >-
+      Add the two GitHub repository secrets (AWS_DEPLOY_ROLE_ARN and
+      DISTRIBUTION_ID), push to main, then confirm the ACM certificate
+      validated and the apex domain resolves to the distribution.
+
+        EvaluateTargetHealth: false
+
+          SslSupportMethod: sni-only
+          MinimumProtocolVersion: TLSv1.2_2021
+
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+            BucketKeyEnabled: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          # Previous deployments are not needed once the live one is verified.
+          - Id: RetireOldDeployments
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 30
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7

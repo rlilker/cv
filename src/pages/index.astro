@@ -1,0 +1,64 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Nav from '../components/Nav.astro';
+import Intro from '../components/Intro.astro';
+import Experience from '../components/Experience.astro';
+import Skills from '../components/Skills.astro';
+import Interests from '../components/Interests.astro';
+import Separator from '../components/Separator.astro';
+import Footer from '../components/Footer.astro';
+import { profile } from '../data/cv';
+
+const title = `${profile.name} — ${profile.role}`;
+const description = profile.summary;
+---
+
+<BaseLayout title={title} description={description}>
+  <div id="top"></div>
+
+  <Nav />
+
+  <main class="page" id="main">
+    <Intro />
+
+    <Separator />
+
+    <Experience />
+
+    <Separator />
+
+
+<script>
+  // Bundled and executed in the browser only — never during the static build.
+  import '../scripts/nav';
+</script>
+
+    <Skills />
+
+    <Separator />
+
+    <Interests />
+  </main>
+
+  <Footer />
+</BaseLayout>
+
+<style>
+  .page {
+    width: 100%;
+    max-width: var(--page-max);
+    margin: 24px auto 0;
+    padding: 0 var(--gutter);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 56px;
+  }
+
+  @media (max-width: 720px) {
+    .page {
+      margin-top: 8px;
+      gap: 40px;
+    }
+  }
+</style>

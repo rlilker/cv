@@ -1,0 +1,29 @@
+{
+  "name": "cv",
+  "type": "module",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Ryan Lilker — CV website. Astro static build deployed to S3 + CloudFront.",
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro build",
+    "verify": "node scripts/verify-build.mjs",
+    "outline": "node scripts/outline-page.mjs",
+    "validate:infra": "node scripts/validate-infra.mjs",
+    "check": "astro check",
+    "test": "npm run build && npm run verify && npm run validate:infra",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@fontsource-variable/roboto-flex": "^5.3.0",
+    "astro": "^5.7.5"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "yaml": "^2.9.1"
+  },
+  "engines": {
+    "node": ">=20.11.0"
+  }
+}
