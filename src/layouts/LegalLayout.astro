@@ -1,0 +1,122 @@
+---
+/**
+ * Shared chrome for the app's legal pages.
+ *
+ * The body content is not written here — it is imported as an Astro Markdown
+ * component from `src/data/`, so `privacypolicy.md` and `tandcs.md` remain the
+ * single source of truth and are never duplicated into a template.
+ */
+import BaseLayout from './BaseLayout.astro';
+import Nav from '../components/Nav.astro';
+import Footer from '../components/Footer.astro';
+
+interface Props {
+  title: string;
+  description: string;
+  /** Slug of the sibling legal page, used for the "other document" link. */
+  siblingHref: string;
+  siblingLabel: string;
+}
+
+const { title, description, siblingHref, siblingLabel } = Astro.props;
+---
+
+<BaseLayout title={title} description={description}>
+  <div id="top"></div>
+
+  <Nav current="projects" />
+
+  <main class="page" id="main">
+    <article class="legal">
+      <a class="back-link" href="/family-planner/">
+        <span aria-hidden="true">←</span> Family Planner
+      </a>
+
+      <h1 class="legal-title">{title}</h1>
+      <p class="legal-updated">Last updated 27 September 2026</p>
+
+      <div class="prose">
+        <slot />
+      </div>
+
+      <nav class="legal-switch" aria-label="Legal documents">
+        <a href={siblingHref}>{siblingLabel}</a>
+        <span class="switch-pipe" aria-hidden="true">·</span>
+        <a href="/">Back to the CV</a>
+      </nav>
+    </article>
+  </main>
+
+  <Footer />
+</BaseLayout>
+
+<style>
+  .page {
+    width: 100%;
+    max-width: var(--page-max);
+    margin: 24px auto 0;
+    padding: 0 var(--gutter);
+  }
+
+  .legal {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 18px;
+    width: 100%;
+    max-width: 78ch;
+  }
+
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--ink-muted);
+    transition: color var(--dur) var(--ease);
+  }
+
+  .back-link:hover {
+    color: var(--accent);
+  }
+
+  .legal-title {
+    font-size: clamp(32px, 5vw, 52px);
+    font-weight: 500;
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+  }
+
+  .legal-updated {
+    font-size: 14px;
+    color: var(--ink-muted);
+  }
+
+  .legal-switch {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-top: 16px;
+    padding-top: 20px;
+    width: 100%;
+    border-top: 1px solid var(--hairline);
+    font-size: 14px;
+  }
+
+  .legal-switch a {
+    color: var(--ink-soft);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    transition: color var(--dur) var(--ease);
+  }
+
+  .legal-switch a:hover {
+    color: var(--accent);
+  }
+
+  .switch-pipe {
+    color: var(--hairline);
+  }
+</style>

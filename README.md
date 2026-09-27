@@ -1,12 +1,26 @@
 # ryanlilker.com
 
-Ryan Lilker's CV, as a static site. Built with [Astro](https://astro.build),
-deployed to S3 + CloudFront by GitHub Actions.
+Ryan Lilker's CV, as a static site, plus a page for the
+[Family Planner](https://github.com/rlilker/family-planner) app. Built with
+[Astro](https://astro.build), deployed to S3 + CloudFront by GitHub Actions.
 
 Visual language adapted from the one-page CV at
 [kshitijcodes.in](https://kshitijcodes.in) (spotlighted on
 [One Page Love](https://onepagelove.com/kshitij-srivastava)) — glass "pill"
 navigation, large muted section headings, thick white separators.
+
+### Pages
+
+| Route                       | Source                                   |
+| --------------------------- | ---------------------------------------- |
+| `/`                         | CV — `src/data/cv.json`                  |
+| `/family-planner/`          | App overview — `src/data/family-planner.json` |
+| `/family-planner/privacy/`  | Rendered from `src/data/privacypolicy.md` |
+| `/family-planner/terms/`    | Rendered from `src/data/tandcs.md`       |
+
+The two legal documents are imported as Astro Markdown components, so the
+markdown files stay the single source of truth and are never duplicated into a
+template.
 
 ---
 
@@ -81,15 +95,18 @@ Astro will cheerfully report a successful build for a page that is missing half
 its content — a malformed data file fails silently as "no roles found". Both
 scripts exist to catch that class of mistake:
 
-- `scripts/verify-build.mjs` reads `dist/index.html` and asserts every employer,
-  date, bullet point, skill group and interest is actually present, plus the
-  SEO tags, a single `<h1>`, and correct UTF-8. 47 checks.
+- `scripts/verify-build.mjs` reads the built HTML for all four pages and asserts
+  every employer, date, bullet point, skill group, interest, app section and
+  legal paragraph is actually present, plus per-page SEO tags, cross-page
+  links, a single `<h1>` per page, and UTF-8 integrity. Around 90 checks.
 - `scripts/validate-infra.mjs` parses `infra/cloudformation.yml` and the
   workflows, then checks every `!Ref` and `Condition:` resolves, and that the
   security-critical settings (public access block, HTTPS redirect, OAC, branch-
   scoped OIDC trust) are set.
 
-Both run in CI and fail the deploy if they do not pass.
+Both run in CI and fail the deploy if they do not pass. `npm run outline`
+prints a text outline of every built page, which is handy for reviewing
+structure without opening a browser.
 
 ---
 

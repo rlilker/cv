@@ -1,0 +1,93 @@
+{
+  "slug": "family-planner",
+  "name": "Family Planner",
+  "tagline": "Family Gmail to shared calendar, on a Raspberry Pi",
+  "summary": "A private, self-hosted pipeline that reads a family's Gmail once a day, works out which emails contain real appointments, and puts them on a shared Google Calendar — with a push notification when something needs attention. The only machine it ever runs on is a Raspberry Pi in the house, and the AI that reads the emails never leaves it.",
+  "status": "In use",
+  "heroStats": [
+    { "value": "1×", "label": "run per day" },
+    { "value": "0", "label": "cloud calls to an AI provider" },
+    { "value": "100%", "label": "of processing stays on the Pi" }
+  ],
+  "problem": {
+    "title": "The problem",
+    "body": [
+      "School emails, dentist confirmations, swimming lesson reminders, party invites and the occasional flight confirmation all arrive as email, and all of them contain a date, a time and a place. None of them are in the calendar.",
+      "The manual version of this is someone reading those emails and typing them into a shared calendar. It does not scale past the first week, and it is the kind of chore that silently stops happening — which is exactly how a dentist appointment gets missed."
+    ]
+  },
+  "solution": {
+    "title": "What it does",
+    "body": [
+      "Once a day, the service asks each configured family Gmail account for recent unread mail, hands the message to a language model running on the Pi itself, and asks it a single question: does this contain a real, confirmed event, and if so what are its details?",
+      "Anything that clears the bar is written to the shared family calendar and a push notification goes out. Anything that does not — newsletters, receipts, marketing, plain chatter — is quietly dropped. A SQLite cache records every message already seen, so the same booking is never added twice."
+    ]
+  },
+  "pipeline": [
+    {
+      "step": "01",
+      "title": "Read",
+      "body": "Queries each family Gmail account over OAuth, using a read-only scope. Only recent unread mail is fetched, and the body is stripped of markup and truncated before anything else sees it."
+    },
+    {
+      "step": "02",
+      "title": "Understand",
+      "body": "The email goes to Llama 3.2 3B running locally in Ollama, which returns strict JSON validated against a Pydantic schema — title, start, end, location, description, attendees."
+    },
+    {
+      "step": "03",
+      "title": "Decide",
+      "body": "The model sets is_event to false for anything promotional, informational, or a receipt with no scheduled time. The sync engine checks a SQLite cache so a re-scanned message is never duplicated."
+    },
+    {
+      "step": "04",
+      "title": "Publish",
+      "body": "Accepted events are created in the shared Google Calendar via the calendar.events scope, and a push notification is sent to the family's phones through ntfy."
+    }
+  ],
+  "privacy": {
+    "title": "Why it is built this way",
+    "body": [
+      "The obvious way to build this is to call a hosted AI API and hand it the contents of the family's inbox. That would work, and it would also mean every school email, every medical appointment and every piece of family correspondence is sent to a third party to be read.",
+      "Running the model on the Pi instead means the inbox is read by something sitting in the same building. There is no AI provider account, no API key, no per-token cost, and no retention policy to reason about because nothing is ever transmitted."
+    ]
+  },
+  "engineering": {
+    "title": "The awkward part: where it runs",
+    "body": [
+      "The Raspberry Pi is not running Raspberry Pi OS. It is the retro-gaming distribution Batocera.linux 42, sitting next to the television as a games console — and it is treated as one."
+    ],
+    "constraints": [
+      {
+        "title": "A read-only root filesystem",
+        "body": "The OS image is a read-only SquashFS build. There is no writable /usr, so there is nowhere to install a Python package or an Ollama binary in the normal way."
+      },
+      {
+        "title": "No systemd, no cron",
+        "body": "Neither service manager nor scheduler is available, so the daily timer is implemented in Python inside a user service, and it sleeps until the target hour rather than being woken by the system."
+      },
+      {
+        "title": "It is a games console",
+        "body": "Nothing may slow down EmulationStation or a game in progress. A resident LLM holding several gigabytes of RAM all day is not acceptable."
+      }
+    ],
+    "solution": [
+      "Everything — source, virtualenv, binaries, model weights, tokens, logs and database — lives under a single directory at /userdata/system/family-planner/. Deleting that one folder returns the console to exactly its original state.",
+      "Ollama is not a resident service. It is a standalone ARM64 binary that the daily job starts, uses for the extraction pass, and kills again. Between runs it holds no memory at all.",
+      "Nothing outside that directory is touched: not the ROMs, the BIOS, the saves, batocera.conf, or any emulator configuration.",
+      "The Google OAuth token is the one genuinely sharp edge — it expires after seven days while an app sits in the testing console, so a service meant to run unattended needs the app moved to production."
+    ]
+  },
+  "stack": [
+    { "label": "Python", "detail": "3.12 virtualenv, deployed to the Pi" },
+    { "label": "Raspberry Pi 5", "detail": "16GB, running Batocera.linux 42" },
+    { "label": "Ollama", "detail": "standalone ARM64 binary, on-demand" },
+    { "label": "Llama 3.2 3B", "detail": "local instruction-tuned model" },
+    { "label": "Google APIs", "detail": "Gmail readonly + Calendar events" },
+    { "label": "Pydantic", "detail": "strict validation of model output" },
+    { "label": "SQLite", "detail": "deduplication cache of seen messages" },
+    { "label": "ntfy", "detail": "push notifications to the family's phones" },
+    { "label": "pytest", "detail": "offline suite plus live extraction tests" }
+  ],
+  "repoUrl": "https://github.com/rlilker/family-planner"
+}

@@ -1,19 +1,30 @@
 ---
-import { profile, navSections } from '../data/cv';
+import { profile, navSections, projectLinks } from '../data/cv';
 
 const { current } = Astro.props as { current?: string };
 ---
 
 <header class="top-nav">
   <div class="nav-pill nav-brand">
-    <a class="brand-chip" href="#top">{profile.name}</a>
+    <a class="brand-chip" href="/">{profile.name}</a>
   </div>
 
   <nav class="nav-pill nav-links" aria-label="Sections">
     {
       navSections.map((section) => (
-        <a href={`#${section.id}`} aria-current={current === section.id ? 'true' : undefined}>
+        <a href={`/#${section.id}`} aria-current={current === section.id ? 'true' : undefined}>
           {section.label}
+        </a>
+      ))
+    }
+    {
+      projectLinks.map((project) => (
+        <a
+          class="nav-project"
+          href={project.href}
+          aria-current={current === 'projects' ? 'true' : undefined}
+        >
+          {project.label}
         </a>
       ))
     }
@@ -112,6 +123,38 @@ const { current } = Astro.props as { current?: string };
   .nav-links a:hover::after,
   .nav-links a[aria-current='true']::after {
     transform: scaleX(1);
+  }
+
+  /* The project link is a different kind of destination from the in-page
+     section anchors, so mark it with an accent dot rather than an underline. */
+  .nav-project {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .nav-project::after {
+    display: none;
+  }
+
+  .nav-project::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    opacity: 0.7;
+    transition: opacity var(--dur) var(--ease);
+  }
+
+  .nav-project:hover,
+  .nav-project[aria-current='true'] {
+    opacity: 1;
+  }
+
+  .nav-project:hover::before,
+  .nav-project[aria-current='true']::before {
+    opacity: 1;
   }
 
   @media (max-width: 720px) {

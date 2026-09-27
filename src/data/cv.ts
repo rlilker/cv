@@ -82,3 +82,22 @@ export const lastName: string = profile.name.split(' ').slice(1).join(' ');
 
 /** Total number of bullet points rendered in the experience timeline. */
 export const totalHighlights: number = roles.reduce((sum, role) => sum + role.highlights.length, 0);
+
+/** A project page linked from the nav and from the CV. */
+export interface ProjectLink {
+  id: string;
+  label: string;
+  href: string;
+  /** One-liner used in the CV's project strip. */
+  blurb: string;
+}
+
+export const projectLinks: ProjectLink[] = [
+  {
+    id: 'family-planner',
+    label: 'Family Planner',
+    href: '/family-planner/',
+    blurb: 'A self-hosted pipeline that turns a family’s Gmail into a shared calendar, using a language model running on a Raspberry Pi.',
+  },
+];
+

@@ -5,9 +5,10 @@ import Intro from '../components/Intro.astro';
 import Experience from '../components/Experience.astro';
 import Skills from '../components/Skills.astro';
 import Interests from '../components/Interests.astro';
+import SectionTitle from '../components/SectionTitle.astro';
 import Separator from '../components/Separator.astro';
 import Footer from '../components/Footer.astro';
-import { profile } from '../data/cv';
+import { profile, projectLinks } from '../data/cv';
 
 const title = `${profile.name} — ${profile.role}`;
 const description = profile.summary;
@@ -27,11 +28,28 @@ const description = profile.summary;
 
     <Separator />
 
+    <section class="section projects" id="projects">
+      <SectionTitle title="Projects" meta={`${projectLinks.length} side project`} />
 
-<script>
-  // Bundled and executed in the browser only — never during the static build.
-  import '../scripts/nav';
-</script>
+      <ul class="project-list">
+        {
+          projectLinks.map((project) => (
+            <li class="project-card">
+              <div class="project-text">
+                <h3 class="project-name">{project.label}</h3>
+                <p class="project-blurb">{project.blurb}</p>
+              </div>
+              <a class="project-link" href={project.href} aria-label={`Read more about ${project.label}`}>
+                <span>Read more</span>
+                <span class="project-arrow" aria-hidden="true">→</span>
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </section>
+
+    <Separator />
 
     <Skills />
 
@@ -42,6 +60,11 @@ const description = profile.summary;
 
   <Footer />
 </BaseLayout>
+
+<script>
+  // Bundled and executed in the browser only — never during the static build.
+  import '../scripts/nav';
+</script>
 
 <style>
   .page {
@@ -59,6 +82,97 @@ const description = profile.summary;
     .page {
       margin-top: 8px;
       gap: 40px;
+    }
+  }
+
+  /* ── Projects ─────────────────────────────────────────────────────────── */
+
+  .projects {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 28px;
+    width: 100%;
+  }
+
+  .project-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: 100%;
+  }
+
+  .project-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px 32px;
+    padding: 26px 30px;
+    border-radius: 18px;
+    background: var(--surface);
+    box-shadow: var(--shadow-btn);
+    transition: transform var(--dur) var(--ease);
+  }
+
+  .project-card:hover {
+    transform: translateY(-3px);
+  }
+
+  .project-text {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .project-name {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .project-blurb {
+    max-width: 62ch;
+    font-size: 16px;
+    line-height: 1.5;
+    color: var(--ink-soft);
+  }
+
+  .project-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+    padding: 10px 18px;
+    border-radius: var(--radius-pill);
+    box-shadow: inset 0 0 0 1px var(--hairline);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--ink-soft);
+    white-space: nowrap;
+    transition:
+      background var(--dur) var(--ease),
+      color var(--dur) var(--ease);
+  }
+
+  .project-arrow {
+    transition: transform var(--dur) var(--ease);
+  }
+
+  .project-link:hover {
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+
+  .project-link:hover .project-arrow {
+    transform: translateX(3px);
+  }
+
+  @media (max-width: 720px) {
+    .project-card {
+      flex-direction: column;
+      align-items: flex-start;
+      padding: 22px;
     }
   }
 </style>
