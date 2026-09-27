@@ -266,8 +266,10 @@ Actions tab.
 aws cloudformation delete-stack --stack-name cv-site --region us-east-1
 ```
 
-The bucket has `DeletionPolicy: Retain`, so it survives. Delete it separately
-with `aws s3 rb s3://<bucket> --force` if you really want it gone.
+The bucket is deleted along with the stack. Its contents are build output and
+are reproducible from git, so there is nothing worth keeping. A retained bucket
+would also survive a failed create and then block the next deploy, so a retry
+would need manual cleanup first.
 
 ---
 

@@ -85,9 +85,14 @@ const faults = [
     mutate: (s) => s.replace(/token\.actions\.githubusercontent\.com/g, 'example.com'),
   },
   {
-    name: 'bucket would be destroyed with the stack',
-    expect: 'S3 bucket retained on stack delete',
-    mutate: (s) => s.replace(/^ {4}DeletionPolicy: Retain\r?\n/m, ''),
+    name: 'S3 bucket retained on delete, which blocks a retry after a failed create',
+    expect: 'S3 bucket is not retained on stack delete',
+    mutate: (s) => s.replace(/^ {4}DeletionPolicy: Delete$/m, '    DeletionPolicy: Retain'),
+  },
+  {
+    name: 'S3 bucket not retained on replacement, so a replace would lose the site',
+    expect: 'S3 bucket is still retained on replacement',
+    mutate: (s) => s.replace(/^ {4}UpdateReplacePolicy: Retain$/m, '    UpdateReplacePolicy: Delete'),
   },
   // Both of these caused a real rollback of the cv-site stack, twice, because
   // the validator looked past them. Each is a distinct trap:

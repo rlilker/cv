@@ -193,7 +193,21 @@ if (parsed[tplRel]) {
   const pab = bucket?.Properties?.PublicAccessBlockConfiguration ?? {};
   check('S3 blocks all public access', Object.values(pab).length === 4 && Object.values(pab).every((v) => v === true), JSON.stringify(pab));
   check('S3 encrypted at rest', !!bucket?.Properties?.BucketEncryption);
-  check('S3 bucket retained on stack delete', bucket?.DeletionPolicy === 'Retain', bucket?.DeletionPolicy);
+  // A failed create must leave nothing behind. A retained bucket survives a
+  // rollback, and the next deploy then dies on an early ResourceExistenceCheck
+  // that reports only "hook validation failed" with no resource named. The
+  // contents are build output and are reproducible from git, so retaining the
+  // bucket protects nothing and costs a confusing manual cleanup.
+  check(
+    'S3 bucket is not retained on stack delete',
+    bucket?.DeletionPolicy !== 'Retain',
+    bucket?.DeletionPolicy,
+  );
+  check(
+    'S3 bucket is still retained on replacement',
+    bucket?.UpdateReplacePolicy === 'Retain',
+    bucket?.UpdateReplacePolicy,
+  );
 
   const dist = Object.values(tpl.Resources ?? {}).find((r) => r.Type === 'AWS::CloudFront::Distribution');
   const cfg = dist?.Properties?.DistributionConfig ?? {};

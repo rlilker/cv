@@ -97,7 +97,13 @@ Resources:
 
   SiteBucket:
     Type: AWS::S3::Bucket
-    DeletionPolicy: Retain
+    # The bucket is NOT retained on delete, and that is deliberate. Its contents
+    # are build output, reproducible from git with one push, so retaining it
+    # protects nothing. Worse, a retained bucket outlives a failed create, and
+    # the next deploy then fails its early ResourceExistenceCheck because the
+    # bucket it wants to create already exists - with no useful error message.
+    # A failed deploy must leave nothing behind, so a retry can just work.
+    DeletionPolicy: Delete
     UpdateReplacePolicy: Retain
     Properties:
       BucketName: !If
