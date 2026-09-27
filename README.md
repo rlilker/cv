@@ -192,6 +192,14 @@ aws sts get-caller-identity
 bash scripts/deploy.sh
 ```
 
+> **Running this from WSL?** It works. The script resolves `aws` and `gh` by
+> absolute path, because WSL translates `C:\Program Files\Amazon\AWSCLIV2`
+> into a PATH entry containing a space, which Linux cannot split correctly — so
+> both tools run fine but are not resolvable by name. The script detects this
+> and says so rather than failing with "not on PATH".
+>
+> To check your environment at any time: `npm run diag`
+
 That single command will:
 
 1. confirm your credentials work, and print the account id

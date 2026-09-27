@@ -12,6 +12,7 @@
     "outline": "node scripts/outline-page.mjs",
     "validate:infra": "node scripts/validate-infra.mjs",
     "selftest:infra": "node scripts/selftest-infra.mjs",
+    "diag": "bash scripts/diag-env.sh",
     "check": "astro check",
     "test": "npm run build && npm run verify && npm run validate:infra && npm run selftest:infra",
     "preview": "astro preview"

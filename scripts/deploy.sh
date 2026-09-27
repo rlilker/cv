@@ -34,6 +34,84 @@ say() { printf '\n\033[1;36m==>\033[0m %s\n' "$1"; }
 die() { printf '\n\033[1;31mERROR:\033[0m %s\n' "$1" >&2; exit 1; }
 
 command -v aws >/dev/null || die "The AWS CLI is not on PATH. Install it: https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html"
+# -----------------------------------------------------------------------------
+#  Tool discovery
+#
+#  Under WSL the Windows PATH is translated into Linux form, but an entry such
+#  as "/mnt/c/Program Files/Amazon/AWSCLIV2" contains a space. Linux splits
+#  PATH on ':' and cannot cope with that, so `aws` runs perfectly well yet
+#  `command -v aws` finds nothing. Rather than make you work around a shell
+#  quirk, resolve the tools here and export an absolute path. The script then
+#  behaves the same from WSL, Git Bash, Linux and macOS.
+# -----------------------------------------------------------------------------
+find_tool() {
+  local name="$1"
+  # 1. Already resolvable by name (Linux, macOS, or a clean PATH).
+  if command -v "$name" >/dev/null 2>&1; then
+    command -v "$name"
+    return 0
+  fi
+
+  # 2. Scan every PATH entry, tolerating spaces inside the entry.
+  local entry candidate
+  local entries=()
+  IFS=':' read -r -a entries <<< "$PATH"
+  for entry in "${entries[@]}"; do
+    for candidate in "$entry/$name" "$entry/$name.exe"; do
+      if [ -f "$candidate" ]; then
+        printf '%s\n' "$candidate"
+        return 0
+      fi
+    done
+  done
+
+  # 3. Well-known Windows install locations, for PATH entries that were dropped.
+  for entry in \
+    "/mnt/c/Program Files/Amazon/AWSCLIV2" \
+    "/c/Program Files/Amazon/AWSCLIV2" \
+    "/mnt/c/Program Files/GitHub CLI" \
+    "/c/Program Files/GitHub CLI" \
+    "$HOME/AppData/Local/Programs/Amazon/AWSCLI" \
+    "/usr/local/bin"; do
+    for candidate in "$entry/$name" "$entry/$name.exe"; do
+      if [ -f "$candidate" ]; then
+        printf '%s\n' "$candidate"
+        return 0
+      fi
+    done
+  done
+
+  return 1
+}
+
+if ! command -v aws >/dev/null 2>&1; then
+  AWS_BIN="$(find_tool aws || true)"
+  [ -n "$AWS_BIN" ] || die "Could not find the AWS CLI.
+
+  Looked on PATH and in the usual install locations.
+  Install it with:  winget install Amazon.AWSCLI
+  Then run:  bash scripts/diag-env.sh   (prints a full diagnosis)"
+  export AWS_BIN
+  aws() { "$AWS_BIN" "$@"; }
+  echo "    note: 'aws' is not resolvable by name here (a PATH entry contains a"
+  echo "          space, which Linux cannot handle). Using: $AWS_BIN"
+else
+  AWS_BIN="$(command -v aws)"
+fi
+
+if ! command -v gh >/dev/null 2>&1; then
+  GH_BIN="$(find_tool gh || true)"
+  [ -n "$GH_BIN" ] || die "Could not find the GitHub CLI (gh).
+
+  It is needed to set the repository secrets automatically.
+  Install it with:  winget install GitHub.cli"
+  export GH_BIN
+  gh() { "$GH_BIN" "$@"; }
+  echo "    note: 'gh' is not resolvable by name here. Using: $GH_BIN"
+else
+  GH_BIN="$(command -v gh)"
+fi
+
 [ -f "$TEMPLATE" ] || die "Template not found at $TEMPLATE"
 
 # ── Identity ────────────────────────────────────────────────────────────────
