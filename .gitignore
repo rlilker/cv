@@ -112,3 +112,7 @@ tmp/
 probe.cjs
 
 .tern-port
+
+# CloudFormation deploy logs
+stack.log
+stack.err
