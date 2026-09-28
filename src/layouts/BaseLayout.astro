@@ -24,7 +24,10 @@ interface Props {
 const { title, description } = Astro.props;
 
 const canonical = new URL(Astro.url.pathname, Astro.site);
-const ogImage = new URL('/og-image.png', Astro.site);
+// No og-image: a social preview card needs a real raster asset, and referencing
+// a file that does not exist produces a broken card on LinkedIn. The tags that
+// do have content are emitted; the image is added the day one exists.
+const ogImage: string | null = null;
 ---
 
 <!doctype html>
@@ -43,28 +46,26 @@ const ogImage = new URL('/og-image.png', Astro.site);
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonical} />
-    <meta property="og:image" content={ogImage} />
-    <meta name="twitter:card" content="summary_large_image" />
+    {ogImage && <meta property="og:image" content={ogImage} />}
+    <meta name="twitter:card" content={ogImage ? 'summary_large_image' : 'summary'} />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
-    <meta name="twitter:image" content={ogImage} />
+    {ogImage && <meta name="twitter:image" content={ogImage} />}
 
     <!-- Icons / PWA -->
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
     <meta name="theme-color" content="#f7f7f7" />
 
     <!-- Keep the machine-readable profile in sync with the visible content.
          This is a static build today; the same shape is what an API would
-         return later, so swapping the source does not change the contract. -->
+         return later, so swapping the source does not change the contract.
+         No email or telephone: LinkedIn and GitHub are the contact routes. -->
     <script type="application/ld+json" set:html={JSON.stringify({
       '@context': 'https://schema.org',
       '@type': 'Person',
       name: profile.name,
       jobTitle: profile.role,
-      email: `mailto:${profile.email}`,
-      telephone: profile.phone,
       url: Astro.site?.toString(),
       address: { '@type': 'PostalAddress', addressLocality: 'Manchester', addressCountry: 'GB' },
       sameAs: [profile.linkedin, profile.github],

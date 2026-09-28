@@ -14,9 +14,14 @@ navigation, large muted section headings, thick white separators.
 | Route                       | Source                                   |
 | --------------------------- | ---------------------------------------- |
 | `/`                         | CV — `src/data/cv.json`                  |
-| `/family-planner/`          | App overview — `src/data/family-planner.json` |
-| `/family-planner/privacy/`  | Rendered from `src/data/privacypolicy.md` |
-| `/family-planner/terms/`    | Rendered from `src/data/tandcs.md`       |
+| `/family-planner`           | App overview — `src/data/family-planner.json` |
+| `/family-planner/privacy`   | Rendered from `src/data/privacypolicy.md` |
+| `/family-planner/terms`     | Rendered from `src/data/tandcs.md`       |
+
+Routes have no trailing slash and no `.html` suffix: Astro's `build.format` is
+`'file'`, so each page is emitted as `<route>.html` and S3 serves it directly
+from the extensionless path. See [astro.config.mjs](astro.config.mjs) for why
+`'directory'` breaks these routes.
 
 The two legal documents are imported as Astro Markdown components, so the
 markdown files stay the single source of truth and are never duplicated into a
@@ -155,7 +160,16 @@ needs to change to update the site.
 
 ```jsonc
 {
-  "profile": { "name": "…", "email": "…", "intro": ["…", "…"] },
+  "profile": {
+    "name": "…",
+    "firstName": "…",              // hero, split across two lines
+    "role": "…",                   // shown under the name
+    "location": "…",               // footer
+    "linkedin": "…",               // contact route
+    "github": "…",                 // contact route
+    "yearsExperience": 25,
+    "intro": ["…"]                 // opening copy; also the meta description
+  },
   "roles": [
     {
       "id": "cmap-software",      // anchor: /#cmap-software

@@ -11,7 +11,9 @@ import Footer from '../components/Footer.astro';
 import { profile, projectLinks } from '../data/cv';
 
 const title = `${profile.name} — ${profile.role}`;
-const description = profile.summary;
+// Built from the intro rather than a separate summary field, so there is one
+// place to edit the wording.
+const description = profile.intro.join(' ');
 ---
 
 <BaseLayout title={title} description={description}>

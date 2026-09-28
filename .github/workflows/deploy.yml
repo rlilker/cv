@@ -169,16 +169,33 @@ jobs:
           fail=0
           step() { printf '\n::group::%s\n' "$1"; printf '::endgroup::\n'; }
 
-          step "Pages return 200"
-          for p in / /family-planner/ /family-planner/privacy/ /family-planner/terms/; do
-            code=$(curl -sSL -o /dev/null -w '%{http_code}' --max-time 20 "$SITE$p" || echo 000)
-            if [ "$code" = "200" ]; then
-              echo "  PASS  $p -> 200"
+          # Each route is checked for the marker that page must contain, not
+          # just for a 200. A status-only check passes even when the wrong
+          # document is served: CloudFront's 403 rule rewrites unknown paths to
+          # /index.html, so /family-planner returned 200 with the CV on it and
+          # the status check was perfectly happy.
+          check_page() {
+            local path="$1" marker="$2" label="$3"
+            local body code
+            body=$(curl -sSL --max-time 20 "$SITE$path" 2>/dev/null || true)
+            code=$(curl -sSL -o /dev/null -w '%{http_code}' --max-time 20 "$SITE$path" 2>/dev/null || echo 000)
+            if [ "$code" != "200" ]; then
+              echo "  FAIL  $label ($path) -> $code"
+              fail=1
+            elif printf '%s' "$body" | grep -qF "$marker"; then
+              echo "  PASS  $label ($path) -> 200, right content"
             else
-              echo "  FAIL  $p -> $code"
+              echo "  FAIL  $label ($path) -> 200 but wrong page (no \"$marker\")"
               fail=1
             fi
-          done
+          }
+
+          step "Each route serves its own page"
+          # Markers are unique to the page, so a wrong-but-200 response fails.
+          check_page "/" "Principal Software Developer" "CV"
+          check_page "/family-planner" "Family Gmail to shared calendar" "Family Planner"
+          check_page "/family-planner/privacy" "Privacy Policy" "Privacy policy"
+          check_page "/family-planner/terms" "Terms &amp; Conditions" "Terms"
 
           step "Content is really published"
           body=$(curl -sSL --max-time 20 "$SITE/" || true)

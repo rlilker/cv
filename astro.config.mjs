@@ -11,10 +11,24 @@ export default defineConfig({
   site: 'https://ryanlilker.com',
   output: 'static',
   compressHTML: true,
+  // 'file', not 'directory'. With 'directory' a page at
+  // src/pages/family-planner/index.astro is emitted as
+  // family-planner/index.html, and S3 stores it under that key.
+  //
+  // A request for /family-planner/ then asks S3 for the key "family-planner/",
+  // which is a prefix, not an object. S3 answers 403, CloudFront's 403 rule
+  // rewrites it to /index.html, and the visitor silently gets the CV homepage
+  // on every project and legal page. The files are uploaded correctly; only
+  // the URL resolution is wrong.
+  //
+  // 'file' emits family-planner.html instead, so /family-planner maps straight
+  // at a real object and no CloudFront Function is needed to fix it up.
   build: {
-    format: 'directory',
+    format: 'file',
     inlineStylesheets: 'auto',
   },
+  // Keep URLs canonical with no trailing slash, matching the .html filenames.
+  trailingSlash: 'never',
   devToolbar: {
     enabled: false,
   },

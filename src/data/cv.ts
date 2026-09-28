@@ -58,16 +58,14 @@ export interface Profile {
   name: string;
   firstName: string;
   role: string;
-  tagline: string;
   location: string;
   timezone: string;
-  email: string;
-  phone: string;
+  /** Contact routes. No email or telephone — LinkedIn and GitHub only. */
   linkedin: string;
   github: string;
   yearsExperience: number;
+  /** Opening copy, and the basis for the page meta description. */
   intro: string[];
-  summary: string;
 }
 
 export const profile: Profile = data.profile;
@@ -96,7 +94,7 @@ export const projectLinks: ProjectLink[] = [
   {
     id: 'family-planner',
     label: 'Family Planner',
-    href: '/family-planner/',
+    href: '/family-planner',
     blurb: 'A self-hosted pipeline that turns a family’s Gmail into a shared calendar, using a language model running on a Raspberry Pi.',
   },
 ];

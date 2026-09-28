@@ -58,11 +58,16 @@ const read = (rel) => {
   return existsSync(abs) ? readFileSync(abs, 'utf8') : null;
 };
 
+// build.format is 'file', so each page is emitted as <route>.html rather than
+// <route>/index.html. See the note in astro.config.mjs: with 'directory', a
+// request for /family-planner/ resolves to the S3 key "family-planner/", which
+// is a prefix rather than an object, and CloudFront serves the CV homepage
+// instead of the page.
 const PAGES = {
   home: 'dist/index.html',
-  app: 'dist/family-planner/index.html',
-  privacy: 'dist/family-planner/privacy/index.html',
-  terms: 'dist/family-planner/terms/index.html',
+  app: 'dist/family-planner.html',
+  privacy: 'dist/family-planner/privacy.html',
+  terms: 'dist/family-planner/terms.html',
 };
 
 const html = {};
@@ -87,12 +92,26 @@ section(`CV page (${(html.home.length / 1024).toFixed(1)} KB)`);
 section('Profile');
 check('name', html.home.includes(data.profile.name));
 check('role', html.home.includes(data.profile.role));
-check('email link', html.home.includes(`mailto:${data.profile.email}`));
-check('tel link', html.home.includes('tel:07734567119'));
 check('LinkedIn', html.home.includes(data.profile.linkedin));
 check('GitHub', html.home.includes(data.profile.github));
 check('location', html.home.includes(data.profile.location));
 check('intro paragraphs', data.profile.intro.every((p) => html.home.includes(escapeHtml(p.slice(0, 60)))));
+
+// Contact details are deliberately absent from the CV. LinkedIn and GitHub are
+// the routes. The Family Planner legal pages still name an email address
+// because GDPR and DSA both require a published point of contact, so this
+// section checks the CV page only.
+section('No direct contact details on the CV');
+const homeText = html.home.replace(/<[^>]*>/g, ' ');
+check('no mailto: link', !html.home.includes('mailto:'));
+check('no tel: link', !html.home.includes('tel:'));
+check('no phone number', !/\b0\d{9,10}\b/.test(homeText), 'a 10-11 digit run that looks like a UK mobile');
+check('no email address in the visible text', !/[\w.+-]+@[\w-]+\.[a-z]{2,}/i.test(homeText));
+check('no email in JSON-LD', !/"email"/.test(html.home));
+check('no telephone in JSON-LD', !/"telephone"/.test(html.home));
+check('no tagline claim', !html.home.includes('Seeking'), 'the "Seeking Full Stack Development" tagline');
+check('no summary blurb', !html.home.includes('proficiency'), 'the generic "proficient in..." summary');
+check('the long second intro paragraph is gone', !html.home.includes('outlives the project'));
 
 section('Employment history');
 for (const role of data.roles) {
@@ -181,8 +200,49 @@ for (const [key, source, title] of [
 
   check('markdown became real HTML', (html[key].match(/<p[ >]/g) || []).length > 20);
   check('document title not duplicated in the body', !page.startsWith(title + ' This'));
-  check('links to the app page', html[key].includes('/family-planner/'));
+  check('links to the app page', html[key].includes('/family-planner"'));
   check('links back to the CV', html[key].includes('href="/"'));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  URL scheme
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Every internal link must match the emitted filenames, and must not carry a
+// trailing slash. build.format 'directory' is what made /family-planner/ serve
+// the CV instead of the page, and nothing in the build output would reveal it
+// on its own - only a request against the deployed site shows it. These checks
+// keep the source and the filenames in agreement so it cannot come back.
+section('URL scheme');
+const configText = readFileSync(resolve(root, 'astro.config.mjs'), 'utf8');
+check("astro build.format is 'file'", /format:\s*'file'/.test(configText), "'directory' breaks directory-style routes on S3");
+check("astro trailingSlash is 'never'", /trailingSlash:\s*'never'/.test(configText));
+
+const flatHtml = all.filter((h) => h.includes('href="/family-planner/"'));
+check('no link uses a trailing-slash project URL', flatHtml.length === 0, 'a /family-planner/ link resolves to the CV');
+
+for (const [key, rel] of Object.entries(PAGES)) {
+  if (key === 'home') continue;
+  const canonical = html[key].match(/<link rel="canonical" href="([^"]+)"/)?.[1] ?? '';
+  check(`${key} canonical has no trailing slash`, canonical.endsWith('/') === false, canonical);
+}
+
+// Every internal page link must correspond to a file the build actually
+// emitted. Assets under /_astro and files with an extension are checked to
+// exist as-is instead, because those are already their final path.
+section('Every internal link resolves');
+const internalHrefs = new Set(
+  all.join(' ').match(/href="\/[^"#]*"/g)?.map((h) => h.slice(6, -1)) ?? [],
+);
+for (const href of internalHrefs) {
+  if (href === '/') continue;
+  const isAsset = /\.[a-z0-9]+$/i.test(href);
+  const target = isAsset ? `dist${href}` : `dist${href}.html`;
+  check(
+    `internal link ${href} maps to a built file`,
+    existsSync(resolve(root, target)),
+    `${target} does not exist`,
+  );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -190,11 +250,11 @@ for (const [key, source, title] of [
 // ═══════════════════════════════════════════════════════════════════════════
 
 section('Cross-page navigation');
-check('home links to the app', html.home.includes('/family-planner/'));
+check('home links to the app', html.home.includes('/family-planner"'));
 check('app links to the CV', html.app.includes('href="/"'));
-check('legal pages link to each other', html.privacy.includes('/family-planner/terms/') && html.terms.includes('/family-planner/privacy/'));
+check('legal pages link to each other', html.privacy.includes('/family-planner/terms"') && html.terms.includes('/family-planner/privacy"'));
 check('nav present on every page', all.every((h) => h.includes('class="nav-pill nav-links"')));
-check('app reachable from the nav on every page', all.every((h) => h.includes('href="/family-planner/"')));
+check('app reachable from the nav on every page', all.every((h) => h.includes('href="/family-planner"')));
 check('CV sections reachable from the nav on every page', all.every((h) => h.includes('href="/#experience"')));
 
 // ═══════════════════════════════════════════════════════════════════════════

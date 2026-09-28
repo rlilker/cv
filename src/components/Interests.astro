@@ -27,13 +27,15 @@ import SectionTitle from './SectionTitle.astro';
 
   <div class="cta">
     <p class="cta-text">
-      Open to <strong>{profile.tagline}</strong> roles in {profile.location}.
+      Based in {profile.location}, and open to new work.
     </p>
 
     <div class="cta-actions">
-      <a class="cta-btn primary" href={`mailto:${profile.email}`}>Get in touch</a>
-      <a class="cta-btn" href={profile.linkedin} target="_blank" rel="noopener noreferrer">
+      <a class="cta-btn primary" href={profile.linkedin} target="_blank" rel="noopener noreferrer">
         LinkedIn
+      </a>
+      <a class="cta-btn" href={profile.github} target="_blank" rel="noopener noreferrer">
+        GitHub
       </a>
     </div>
   </div>

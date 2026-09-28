@@ -6,16 +6,12 @@
     "tagline": "Full Stack Development",
     "location": "Manchester, UK",
     "timezone": "Europe/London",
-    "email": "ryan.lilker@gmail.com",
-    "phone": "07734567119",
     "linkedin": "https://www.linkedin.com/in/ryanlilker/",
     "github": "https://github.com/rlilker",
     "yearsExperience": 25,
     "intro": [
-      "Ryan is a Principal Software Developer based in Manchester, UK, with 25 years of experience building and running production software end to end.",
-      "He has led teams of up to 12 across four squads, taken a SaaS product from its first client to 400+ customers and £7m ARR, and moved architecture from on-premise servers to managed hosting and then the cloud. He cares about what keeps software healthy: test coverage, code quality, pipelines nobody has to babysit, and documentation that outlives the project."
-    ],
-    "summary": "A Principal Software Developer with 25 years of experience and a proven record of achievement, seeks position in Full Stack Development. Capable of making a significant contribution to the profitability of any employer. Excellent team worker who communicates effectively at all levels and remains confident and good humoured under pressure."
+      "Ryan is a Principal Software Developer based in Manchester, UK, with 25 years of experience building and running production software end to end."
+    ]
   },
   "roles": [
     {
