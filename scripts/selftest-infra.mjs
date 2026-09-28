@@ -35,6 +35,35 @@ const runValidator = () => {
 
 // The template is checked out with CRLF on Windows, so every mutation below
 // matches line endings loosely rather than assuming "\n".
+
+/**
+ * Remove a YAML block and everything indented under it, line by line.
+ *
+ * A regex like /^\s+Key:\n(?:^ {4,}.*\n)*?^ {2}\S/m backtracks catastrophically
+ * here - it spun a node process for over seven minutes before being killed.
+ * Walking the lines once is linear and cannot hang.
+ */
+const removeBlock = (text, key) => {
+  const lines = text.split(/\r?\n/);
+  const start = lines.findIndex((l) => new RegExp(`^\\s*${key}:\\s*$`).test(l));
+  if (start === -1) return text;
+  const indent = lines[start].length - lines[start].trimStart().length;
+  let end = start + 1;
+  while (end < lines.length) {
+    const line = lines[end];
+    if (line.trim() === '') {
+      end++;
+      continue;
+    }
+    const lineIndent = line.length - line.trimStart().length;
+    if (lineIndent <= indent) break;
+    end++;
+  }
+  // Drop trailing blank lines that belonged to the removed block.
+  while (end > start && lines[end - 1].trim() === '') end--;
+  return [...lines.slice(0, start), ...lines.slice(end)].join('\n');
+};
+
 const faults = [
   {
     name: 'truncated BucketEncryption (key present, value empty)',
@@ -64,15 +93,8 @@ const faults = [
   {
     name: 'no bucket policy, so the origin access control grants nothing and every route 403s',
     expect: 'bucket policy exists for the origin access control',
-    // Removes the whole resource block. Matches to the next line indented less
-    // than the resource key, which is how CloudFormation nests resource
-    // properties. Line endings are matched loosely because the file is CRLF on
-    // Windows.
-    mutate: (s) =>
-      s.replace(
-        /^ {2}SiteBucketPolicy:\r?\n(?:[ ]+[^\r\n]*\r?\n)*/m,
-        '',
-      ),
+    // Removes the whole resource block. Line-based so it cannot backtrack.
+    mutate: (s) => removeBlock(s, 'SiteBucketPolicy'),
   },
   {
     name: 'bucket policy grant not scoped to this distribution',
@@ -86,7 +108,26 @@ const faults = [
   {
     name: 'bucket policy granting write access to CloudFront',
     expect: 'bucket policy is read-only',
-    mutate: (s) => s.replace('Action: s3:GetObject', 'Action:\n                  - s3:GetObject\n                  - s3:PutObject'),
+    mutate: (s) =>
+      s.replace(
+        /^ {12}Action: s3:GetObject$/m,
+        '            Action:\n              - s3:GetObject\n              - s3:PutObject',
+      ),
+  },
+  {
+    name: 'CloudFront path function removed, so extensionless routes 403',
+    expect: 'a CloudFront function resolves extensionless paths',
+    mutate: (s) => removeBlock(s, 'AppendHtmlFunction'),
+  },
+  {
+    name: 'CloudFront path function not attached to the cache behaviour',
+    expect: 'the path function is attached to the default cache behaviour',
+    mutate: (s) => removeBlock(s, 'FunctionAssociations'),
+  },
+  {
+    name: 'CloudFront function never auto-published',
+    expect: 'the function is auto-published',
+    mutate: (s) => s.replace(/^ {6}AutoPublish: true$/m, '      AutoPublish: false'),
   },
   {
     name: 'CloudFront 404 rewritten to the homepage, so a wrong page returns 200',
