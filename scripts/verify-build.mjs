@@ -112,6 +112,15 @@ check('no telephone in JSON-LD', !/"telephone"/.test(html.home));
 check('no tagline claim', !html.home.includes('Seeking'), 'the "Seeking Full Stack Development" tagline');
 check('no summary blurb', !html.home.includes('proficiency'), 'the generic "proficient in..." summary');
 check('the long second intro paragraph is gone', !html.home.includes('outlives the project'));
+// The closing CTA is just "Contact Me" next to the two buttons. It used to
+// read "Based in Manchester, UK, and open to new work."
+check('closing CTA says Contact Me', html.home.includes('Contact Me'));
+check(
+  'closing CTA makes no availability claim',
+  !/open to new work|open to .* roles/i.test(html.home),
+  'the CTA should invite contact, not advertise availability',
+);
+check('no tagline field left in the CV data', !('tagline' in data.profile));
 
 section('Employment history');
 for (const role of data.roles) {
