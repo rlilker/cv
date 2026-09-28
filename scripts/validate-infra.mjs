@@ -548,6 +548,12 @@ if (parsed[tplRel]) {
 
   const policy = JSON.stringify(role?.Properties?.Policies ?? []);
   check('deploy role can invalidate CloudFront', policy.includes('cloudfront:CreateInvalidation'));
+  // Every action the publish step performs. DeleteObject alone is not enough:
+  // the sync uploads the whole site, so a missing PutObject fails the job part
+  // way through with a 403 and leaves a half-published bucket.
+  for (const action of ['s3:GetObject', 's3:PutObject', 's3:DeleteObject']) {
+    check(`deploy role can perform ${action}`, policy.includes(action));
+  }
   // The workflow also runs `aws cloudfront wait invalidation-completed`, which
   // polls GetInvalidation. Missing it publishes the site and then fails the job.
   check(

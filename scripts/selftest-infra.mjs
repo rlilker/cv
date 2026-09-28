@@ -115,6 +115,16 @@ const faults = [
       ),
   },
   {
+    name: 'deploy role cannot upload, so the publish fails part way through',
+    expect: 'deploy role can perform s3:PutObject',
+    mutate: (s) => s.replace(/^ {18}- s3:PutObject\r?\n/m, ''),
+  },
+  {
+    name: 'deploy role cannot read objects',
+    expect: 'deploy role can perform s3:GetObject',
+    mutate: (s) => s.replace(/^ {18}- s3:GetObject\r?\n/m, ''),
+  },
+  {
     name: 'function ARN read from a non-existent FunctionMetadata.FunctionArn attribute',
     expect: 'is a valid Function reference',
     mutate: (s) => s.replace('!GetAtt AppendHtmlFunction.FunctionARN', '!GetAtt AppendHtmlFunction.FunctionMetadata.FunctionArn'),
