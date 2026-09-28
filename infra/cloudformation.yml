@@ -271,17 +271,17 @@ Resources:
           # every response is cacheable at the edge.
           CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
           ResponseHeadersPolicyId: !Ref ResponseHeadersPolicy
-        # Serve index.html for unknown paths so the site keeps resolving even
-        # if it grows beyond a single page.
-        CustomErrorResponses:
-          - ErrorCode: 403
-            ResponseCode: 200
-            ResponsePagePath: /index.html
-            ErrorCachingMinTTL: 10
-          - ErrorCode: 404
-            ResponseCode: 200
-            ResponsePagePath: /index.html
-            ErrorCachingMinTTL: 10
+        # No CustomErrorResponses. Rewriting 403/404 to /index.html made every
+        # unknown path return 200 with the CV, which is what hid the original
+        # bug: /family-planner was serving the homepage with a 200, and a
+        # status-only live check could not tell the difference. It also meant a
+        # mistyped URL silently landed on the CV instead of 404ing, and a
+        # cached 403 kept re-serving that rewrite for ErrorCachingMinTTL
+        # seconds after a deploy.
+        #
+        # With build.format 'file' every real route maps to a real object, so
+        # the rewrite is unnecessary - and a genuine 404 beats a convincing
+        # wrong page.
         ViewerCertificate:
           # Ref, not !GetAtt Certificate.Arn. The only GetAtt attributes this
           # resource publishes are CertificateArn and CertificateStatus - there

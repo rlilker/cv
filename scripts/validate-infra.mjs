@@ -235,7 +235,22 @@ if (parsed[tplRel]) {
   const cacheBehaviour = cfg?.DefaultCacheBehavior;
   check('CloudFront redirects to HTTPS', cacheBehaviour?.ViewerProtocolPolicy === 'redirect-to-https', cacheBehaviour?.ViewerProtocolPolicy);
   check('CloudFront uses OAC', !!cfg?.Origins?.[0]?.OriginAccessControlId);
-  check('CloudFront has error fallbacks', (cfg?.CustomErrorResponses ?? []).length > 0);
+  // A CustomErrorResponses rule that rewrites 403/404 to /index.html makes every
+  // unknown path return 200 with the CV. That is what hid the original bug:
+  // /family-planner served the homepage with a 200, so a status-only live
+  // check passed. It also means a mistyped URL silently lands on the CV, and a
+  // cached 403 keeps re-serving that rewrite after a deploy. Refuse it.
+  const errorRules = cfg?.CustomErrorResponses ?? [];
+  const homepageRewrites = errorRules.filter(
+    (r) => String(r?.ResponsePagePath ?? '').includes('index.html'),
+  );
+  check(
+    'CloudFront does not rewrite errors to the homepage',
+    homepageRewrites.length === 0,
+    homepageRewrites.length
+      ? `rewrites ${homepageRewrites.map((r) => r.ErrorCode).join(', ')} to ${homepageRewrites[0].ResponsePagePath}, so a wrong page returns 200`
+      : '',
+  );
 
   // The custom domain must be attached to the distribution, not just pointed at
   // it in DNS. Without Aliases the edge serves only *.cloudfront.net and every

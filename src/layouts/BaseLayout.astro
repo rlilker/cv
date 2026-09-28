@@ -23,7 +23,13 @@ interface Props {
 
 const { title, description } = Astro.props;
 
-const canonical = new URL(Astro.url.pathname, Astro.site);
+// With build.format 'file' the output is family-planner.html, but the public
+// URL is /family-planner. Astro's build pathname carries the .html suffix, so
+// it is stripped here - otherwise every canonical and og:url on a sub-page
+// points at a URL that 403s.
+const stripHtml = (pathname) => pathname.replace(/\.html$/, '') || '/';
+
+const canonical = new URL(stripHtml(Astro.url.pathname), Astro.site);
 // No og-image: a social preview card needs a real raster asset, and referencing
 // a file that does not exist produces a broken card on LinkedIn. The tags that
 // do have content are emitted; the image is added the day one exists.

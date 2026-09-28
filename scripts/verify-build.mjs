@@ -221,10 +221,15 @@ check("astro trailingSlash is 'never'", /trailingSlash:\s*'never'/.test(configTe
 const flatHtml = all.filter((h) => h.includes('href="/family-planner/"'));
 check('no link uses a trailing-slash project URL', flatHtml.length === 0, 'a /family-planner/ link resolves to the CV');
 
-for (const [key, rel] of Object.entries(PAGES)) {
+for (const [key] of Object.entries(PAGES)) {
   if (key === 'home') continue;
   const canonical = html[key].match(/<link rel="canonical" href="([^"]+)"/)?.[1] ?? '';
-  check(`${key} canonical has no trailing slash`, canonical.endsWith('/') === false, canonical);
+  // The .html suffix is stripped so canonical matches the public URL. Left in,
+  // it points at a URL that returns 404 - which is how a search engine ends up
+  // indexing a dead link.
+  check(`${key} canonical has no .html suffix`, !canonical.endsWith('.html'), canonical);
+  check(`${key} canonical has no trailing slash`, !canonical.endsWith('/'), canonical);
+  check(`${key} og:url matches canonical`, html[key].includes(`property="og:url" content="${canonical}"`));
 }
 
 // Every internal page link must correspond to a file the build actually

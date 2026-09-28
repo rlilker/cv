@@ -89,6 +89,22 @@ const faults = [
     mutate: (s) => s.replace('Action: s3:GetObject', 'Action:\n                  - s3:GetObject\n                  - s3:PutObject'),
   },
   {
+    name: 'CloudFront 404 rewritten to the homepage, so a wrong page returns 200',
+    expect: 'does not rewrite errors to the homepage',
+    // Inserts the rule rather than replacing one, since the real template has
+    // no CustomErrorResponses block at all - the fault is its presence.
+    mutate: (s) =>
+      s.replace(
+        /^ {8}ViewerCertificate:$/m,
+        '        CustomErrorResponses:\n' +
+          '          - ErrorCode: 404\n' +
+          '            ResponseCode: 200\n' +
+          '            ResponsePagePath: /index.html\n' +
+          '            ErrorCachingMinTTL: 10\n' +
+          '        ViewerCertificate:',
+      ),
+  },
+  {
     name: 'CloudFront distribution with no custom domain alias, so the real domain fails TLS',
     expect: 'CloudFront distribution has the apex domain as an alias',
     mutate: (s) => s.replace(/^ {8}Aliases:\r?\n(?: {10}- .*\r?\n)+/m, ''),
