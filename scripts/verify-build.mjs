@@ -136,8 +136,14 @@ check('every skill group rendered', cards === data.skillGroups.length, `${cards}
 const pills = (html.home.match(/class="interest-pill"/g) || []).length;
 check('every interest rendered', pills === data.interests.length, `${pills}/${data.interests.length}`);
 
-const stats = (html.home.match(/class="stat"/g) || []).length;
-check('stat tiles rendered', stats === data.highlights.length, `${stats}/${data.highlights.length}`);
+// The stat strip was removed from the hero, so there is no CV-level "highlights"
+// array any more. The Family Planner page keeps its own heroStats.
+check('no stat strip on the CV', !html.home.includes('class="stat"'), 'the hero stat tiles were removed');
+check(
+  'no highlights array in the CV data',
+  !('highlights' in data),
+  'cv.json should not carry an unused highlights array',
+);
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  Family Planner page

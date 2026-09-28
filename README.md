@@ -184,7 +184,6 @@ needs to change to update the site.
     }
   ],
   "skillGroups": [{ "id": "…", "title": "…", "items": ["…"] }],
-  "highlights": [{ "value": "25", "suffix": "yrs", "label": "…" }],
   "interests": ["…"],
   "navSections": [{ "id": "experience", "label": "Experience" }]
 }

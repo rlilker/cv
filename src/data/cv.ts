@@ -43,12 +43,6 @@ export interface SkillGroup {
   items: string[];
 }
 
-export interface Stat {
-  value: string;
-  suffix: string;
-  label: string;
-}
-
 export interface NavSection {
   id: string;
   label: string;
@@ -71,7 +65,6 @@ export interface Profile {
 export const profile: Profile = data.profile;
 export const roles: Role[] = data.roles;
 export const skillGroups: SkillGroup[] = data.skillGroups;
-export const highlights: Stat[] = data.highlights;
 export const interests: string[] = data.interests;
 export const navSections: NavSection[] = data.navSections;
 
