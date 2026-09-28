@@ -1,14 +1,10 @@
 ---
-import { profile, navSections, projectLinks } from '../data/cv';
+import { navSections, projectLinks } from '../data/cv';
 
 const { current } = Astro.props as { current?: string };
 ---
 
 <header class="top-nav">
-  <div class="nav-pill nav-brand">
-    <a class="brand-chip" href="/">{profile.name}</a>
-  </div>
-
   <nav class="nav-pill nav-links" aria-label="Sections">
     {
       navSections.map((section) => (
@@ -60,30 +56,6 @@ const { current } = Astro.props as { current?: string };
     pointer-events: auto;
   }
 
-  .nav-brand {
-    padding: 0 8px;
-  }
-
-  .brand-chip {
-    height: var(--chip-h);
-    padding: 0 16px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 24px;
-    background: var(--accent);
-    color: var(--accent-ink);
-    font-size: 16px;
-    font-weight: 500;
-    line-height: 1.2;
-    white-space: nowrap;
-    transition: transform var(--dur) var(--ease);
-  }
-
-  .brand-chip:hover {
-    transform: scale(1.03);
-  }
-
   .nav-links {
     padding: 0 28px;
     gap: 28px;
@@ -91,6 +63,12 @@ const { current } = Astro.props as { current?: string };
     font-weight: 500;
     line-height: 1.2;
     white-space: nowrap;
+    /* Sits on the right now that the brand lozenge is gone, where the links
+       already were. */
+    margin-left: auto;
+    /* Without this the pill refuses to shrink below its content and the
+       Family Planner link spills past its rounded right edge. */
+    min-width: 0;
   }
 
   .nav-links a {
@@ -131,6 +109,10 @@ const { current } = Astro.props as { current?: string };
     display: inline-flex;
     align-items: center;
     gap: 7px;
+    /* The dot plus the longest label has to fit inside the pill. Without an
+       explicit no-shrink basis the flex item could be squeezed and the link
+       would read as hanging off the end of the container. */
+    flex: 0 0 auto;
   }
 
   .nav-project::after {
@@ -164,8 +146,11 @@ const { current } = Astro.props as { current?: string };
     }
 
     .nav-links {
-      order: 3;
+      /* Full width on narrow screens so the items stay reachable. The links
+         were previously the second child and needed `order` to sit below the
+         brand lozenge; with only the links left, order would be a no-op. */
       width: 100%;
+      margin-left: 0;
       justify-content: space-between;
       gap: 12px;
       padding: 0 20px;

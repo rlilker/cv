@@ -34,7 +34,6 @@
   --page-max: 1366px;
   --gutter: 40px;
   --nav-h: 51px;
-  --chip-h: 36px;
   --radius-pill: 999px;
   --radius-card: 12px;
   --radius-sep: 24px;
@@ -81,7 +80,11 @@ body {
   font-weight: 400;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  overflow-x: hidden;
+  /* 'clip', never 'hidden'. A non-visible overflow on body propagates to the
+     viewport and stops <header> being position: sticky, so the menu scrolled
+     away instead of staying pinned. 'clip' contains overflow the same way but
+     does not create a scroll container, so sticky keeps working. */
+  overflow-x: clip;
 }
 
 h1,

@@ -277,6 +277,12 @@ check('nav present on every page', all.every((h) => h.includes('class="nav-pill 
 check('app reachable from the nav on every page', all.every((h) => h.includes('href="/family-planner"')));
 check('CV sections reachable from the nav on every page', all.every((h) => h.includes('href="/#experience"')));
 
+// The brand lozenge was removed. The name still appears elsewhere (footer,
+// JSON-LD, headings), so the check is for the chip element specifically, not
+// for the absence of the name.
+check('no brand lozenge in the nav', all.every((h) => !h.includes('brand-chip')));
+check('no nav-brand pill', all.every((h) => !h.includes('nav-brand')));
+
 // ═══════════════════════════════════════════════════════════════════════════
 //  Per-page metadata
 // ═══════════════════════════════════════════════════════════════════════════
@@ -313,8 +319,51 @@ check('self-hosted font (no Google Fonts CDN)', !all.some((h) => h.includes('fon
 check('robots.txt present', existsSync(resolve(root, 'dist/robots.txt')));
 check('skip link on every page', all.every((h) => h.includes('class="skip-link"')));
 check('exactly one h1 per page', all.every((h) => (h.match(/<h1/g) || []).length === 1));
-check('nav has aria-label', all.every((h) => h.includes('aria-label="Sections"')));
 check('decorative svgs are aria-hidden', all.every((h) => h.includes('aria-hidden="true"')));
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Nav behaviour
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Read from source rather than the bundle, because these are the declarations
+// that decide whether the menu stays pinned and whether the project link stays
+// inside its pill. Both were wrong, and neither is visible in the HTML.
+section('Nav behaviour');
+
+const navSrc = readFileSync(resolve(root, 'src/components/Nav.astro'), 'utf8');
+const globalSrc = readFileSync(resolve(root, 'src/styles/global.css'), 'utf8');
+
+check('nav header is position: sticky', /\.top-nav\s*\{[^}]*position:\s*sticky/.test(navSrc));
+check('nav header is pinned to the top', /\.top-nav\s*\{[^}]*top:\s*0\b/.test(navSrc));
+
+// 'hidden' on body propagates to the viewport and silently breaks sticky, so
+// the menu scrolled away instead of staying pinned. 'clip' contains overflow
+// without becoming a scroll container. This is the check that stops it
+// coming back.
+check(
+  'body does not use overflow-x: hidden (breaks position: sticky)',
+  !/overflow-x:\s*hidden/.test(globalSrc),
+  'use overflow-x: clip instead',
+);
+check('body uses overflow-x: clip', /overflow-x:\s*clip/.test(globalSrc));
+
+// The Family Planner link used to spill past the pill's rounded right edge
+// because the pill could not shrink below its content.
+check(
+  'nav pill can shrink so the project link stays inside it',
+  /\.nav-links\s*\{[^}]*min-width:\s*0/.test(navSrc),
+);
+check('nav project link does not shrink', /\.nav-project\s*\{[^}]*flex:\s*0 0 auto/.test(navSrc));
+check('nav links sit on the right', /\.nav-links\s*\{[^}]*margin-left:\s*auto/.test(navSrc));
+
+// Dead code left behind by removing the brand lozenge.
+check('no dead --chip-h token', !/--chip-h/.test(globalSrc));
+check('no dead .brand-chip rule', !/\.brand-chip\s*\{/.test(navSrc));
+check('no dead .nav-brand rule', !/\.nav-brand\s*\{/.test(navSrc));
+
+// The nav is still a real, labelled landmark.
+check('nav has aria-label', all.every((h) => h.includes('aria-label="Sections"')));
+check('nav is a <nav> landmark on every page', all.every((h) => h.includes('<nav class="nav-pill nav-links"')));
 
 section('Source hygiene');
 
