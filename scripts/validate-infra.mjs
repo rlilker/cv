@@ -150,7 +150,7 @@ if (parsed[tplRel]) {
     'AWS::CloudFront::Distribution': ['DistributionDomainName', 'DomainName', 'Id'],
     'AWS::CloudFront::OriginAccessControl': ['Id'],
     'AWS::CloudFront::ResponseHeadersPolicy': ['Id'],
-    'AWS::CloudFront::Function': ['FunctionARN', 'FunctionMetadata', 'Name', 'Status', 'LastModifiedTime'],
+    'AWS::CloudFront::Function': ['FunctionARN', 'FunctionMetadata'],
     'AWS::S3::Bucket': [
       'Arn', 'DomainName', 'DualStackDomainName', 'RegionalDomainName',
       'WebsiteURL', 'ObjectLockEnabled', 'AccelerateEndpoint',
@@ -171,7 +171,13 @@ if (parsed[tplRel]) {
   });
 
   for (const raw of new Set(getatt)) {
-    const [logicalId, attr] = raw.split('.').map((s) => s.trim());
+    // The normal form is "LogicalId.Attribute" - exactly two segments. A longer
+    // path such as "Function.FunctionMetadata.FunctionArn" is a mistake, and
+    // checking only the head would accept it because the head is real. Two
+    // segments are validated against the documented attribute list; anything
+    // deeper is rejected outright.
+    const parts = raw.split('.').map((s) => s.trim());
+    const logicalId = parts[0];
     const res = tpl.Resources?.[logicalId];
     if (!res) {
       check(`!GetAtt ${raw} targets a declared resource`, false, `no resource '${logicalId}'`);
@@ -182,9 +188,18 @@ if (parsed[tplRel]) {
       check(`!GetAtt attribute list known for ${res.Type}`, false, 'add it to GETATT_ATTRS in validate-infra.mjs');
       continue;
     }
+    const type = res.Type.split('::').pop();
+    if (parts.length > 2) {
+      check(
+        `!GetAtt ${raw} is a valid ${type} reference`,
+        false,
+        `expected "LogicalId.Attribute"; ${type} publishes ${allowed.join(', ')}`,
+      );
+      continue;
+    }
     check(
-      `!GetAtt ${logicalId}.${attr} is a real ${res.Type.split('::').pop()} attribute`,
-      allowed.includes(attr),
+      `!GetAtt ${raw} is a real ${type} attribute`,
+      allowed.includes(parts[1]),
       `allowed: ${allowed.join(', ')}`,
     );
   }

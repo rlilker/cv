@@ -326,7 +326,12 @@ Resources:
           # extensionless public URL onto the file the build actually emitted.
           FunctionAssociations:
             - EventType: viewer-request
-              FunctionARN: !GetAtt AppendHtmlFunction.FunctionMetadata.FunctionArn
+              # FunctionARN, not FunctionMetadata.FunctionArn. The documented
+              # GetAtt for this resource is FunctionARN, and asking for
+              # FunctionMetadata.FunctionArn fails the update with "Requested
+              # attribute FunctionMetadata.FunctionArn does not exist in schema
+              # for AWS::CloudFront::Function".
+              FunctionARN: !GetAtt AppendHtmlFunction.FunctionARN
         # No CustomErrorResponses. Rewriting 403/404 to /index.html would make
         # every unknown path return 200 with the CV, which is what hid this bug
         # in the first place: /family-planner served the homepage with a 200 and

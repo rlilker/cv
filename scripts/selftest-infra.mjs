@@ -115,6 +115,11 @@ const faults = [
       ),
   },
   {
+    name: 'function ARN read from a non-existent FunctionMetadata.FunctionArn attribute',
+    expect: 'is a valid Function reference',
+    mutate: (s) => s.replace('!GetAtt AppendHtmlFunction.FunctionARN', '!GetAtt AppendHtmlFunction.FunctionMetadata.FunctionArn'),
+  },
+  {
     name: 'CloudFront path function removed, so extensionless routes 403',
     expect: 'a CloudFront function resolves extensionless paths',
     mutate: (s) => removeBlock(s, 'AppendHtmlFunction'),
