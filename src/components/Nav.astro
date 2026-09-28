@@ -157,4 +157,19 @@ const { current } = Astro.props as { current?: string };
       font-size: 14px;
     }
   }
+
+  /* Below ~720px the section labels plus the project label no longer fit on one
+     line, and `white-space: nowrap` on the pill meant the Family Planner link
+     was pushed past the right edge and the document scrolled sideways. Letting
+     the items wrap onto a second row keeps every label inside the pill. */
+  @media (max-width: 720px) {
+    .nav-links {
+      flex-wrap: wrap;
+      white-space: normal;
+      row-gap: 4px;
+      padding-top: 8px;
+      padding-bottom: 8px;
+      height: auto;
+    }
+  }
 </style>

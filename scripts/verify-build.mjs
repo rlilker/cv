@@ -356,6 +356,30 @@ check(
 check('nav project link does not shrink', /\.nav-project\s*\{[^}]*flex:\s*0 0 auto/.test(navSrc));
 check('nav links sit on the right', /\.nav-links\s*\{[^}]*margin-left:\s*auto/.test(navSrc));
 
+// Below 720px the six labels no longer fit on one line. Without letting the
+// pill wrap, the project link was pushed past the right edge and the document
+// scrolled sideways. Verified in a real browser at 380px.
+check(
+  'nav pill wraps its items on narrow screens',
+  /@media \(max-width: 720px\)[\s\S]*?\.nav-links\s*\{[^}]*flex-wrap:\s*wrap/.test(navSrc),
+);
+check(
+  'nav pill drops white-space: nowrap on narrow screens',
+  /@media \(max-width: 720px\)[\s\S]*?\.nav-links\s*\{[^}]*white-space:\s*normal/.test(navSrc),
+);
+
+// A long section count ("62 technologies") with white-space: nowrap forced the
+// whole page into horizontal scroll on a phone. The row now wraps instead.
+const sectionTitleSrc = readFileSync(resolve(root, 'src/components/SectionTitle.astro'), 'utf8');
+check(
+  'section heading row can shrink',
+  /\.section-head\s*\{[^}]*min-width:\s*0/.test(sectionTitleSrc),
+);
+check(
+  'section heading row wraps on narrow screens',
+  /@media \(max-width: 720px\)[\s\S]*?\.section-head\s*\{[^}]*flex-wrap:\s*wrap/.test(sectionTitleSrc),
+);
+
 // Dead code left behind by removing the brand lozenge.
 check('no dead --chip-h token', !/--chip-h/.test(globalSrc));
 check('no dead .brand-chip rule', !/\.brand-chip\s*\{/.test(navSrc));

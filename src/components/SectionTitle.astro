@@ -20,6 +20,10 @@ const { title, meta } = Astro.props;
     align-items: baseline;
     gap: 12px;
     width: 100%;
+    /* The title and the count sit on one line, but the title can shrink. Without
+       this the row refuses to shrink below its content and a long count like
+       "62 technologies" pushed the page into horizontal scroll on a phone. */
+    min-width: 0;
   }
 
   .section-title {
@@ -28,6 +32,7 @@ const { title, meta } = Astro.props;
     line-height: 1.2;
     letter-spacing: -0.02em;
     color: var(--ink-muted);
+    min-width: 0;
   }
 
   .section-meta {
@@ -35,11 +40,19 @@ const { title, meta } = Astro.props;
     font-weight: 500;
     color: var(--ink-muted);
     white-space: nowrap;
+    flex: 0 0 auto;
   }
 
   @media (max-width: 720px) {
     .section-title {
       font-size: 28px;
+    }
+
+    /* Below this the count no longer fits beside the heading, so it drops
+       under it rather than forcing the row wider than the screen. */
+    .section-head {
+      flex-wrap: wrap;
+      row-gap: 2px;
     }
   }
 </style>
