@@ -43,9 +43,17 @@ const runValidator = () => {
  * here - it spun a node process for over seven minutes before being killed.
  * Walking the lines once is linear and cannot hang.
  */
-const removeBlock = (text, key) => {
+const removeBlock = (text, key, { after } = {}) => {
   const lines = text.split(/\r?\n/);
-  const start = lines.findIndex((l) => new RegExp(`^\\s*${key}:\\s*$`).test(l));
+  // `after` scopes the search, because the same key can appear in more than one
+  // resource - DeletionPolicy exists on both the bucket and the certificate, and
+  // removing the wrong one would silently weaken the other resource's policy.
+  const searchFrom = after
+    ? lines.findIndex((l) => new RegExp(`^\\s*${after}:`).test(l)) + 1
+    : 0;
+  const start = lines.findIndex(
+    (l, i) => i >= searchFrom && new RegExp(`^\\s*${key}:\\s*$`).test(l),
+  );
   if (start === -1) return text;
   const indent = lines[start].length - lines[start].trimStart().length;
   let end = start + 1;
@@ -143,6 +151,48 @@ const faults = [
     name: 'CloudFront function never auto-published',
     expect: 'the function is auto-published',
     mutate: (s) => s.replace(/^ {6}AutoPublish: true$/m, '      AutoPublish: false'),
+  },
+  {
+    name: 'certificate not retained, so a replace deletes the live certificate',
+    expect: 'certificate is retained on stack delete',
+    // Scoped to the Certificate resource: the bucket also has a DeletionPolicy,
+    // and dropping that one instead would leave this test proving the wrong thing.
+    // Walked line by line rather than by index arithmetic, so it works with
+    // CRLF and does not depend on where the resource happens to sit.
+    mutate: (s) => {
+      const lines = s.split(/\r?\n/);
+      const at = lines.findIndex((l) => /^ {2}Certificate:\s*$/.test(l));
+      if (at === -1) return s;
+      for (let i = at + 1; i < lines.length; i++) {
+        if (/^ {2}\S/.test(lines[i])) break; // next resource
+        if (/^ {4}DeletionPolicy:/.test(lines[i])) {
+          lines.splice(i, 1);
+          return lines.join('\n');
+        }
+      }
+      return s;
+    },
+  },
+  {
+    name: 'certificate not retained on replacement',
+    expect: 'certificate is retained on replacement',
+    // Scoped the same way, for the same reason.
+    mutate: (s) => {
+      const lines = s.split(/\r?\n/);
+      const at = lines.findIndex((l) => /^ {2}Certificate:\s*$/.test(l));
+      for (let i = at; i < lines.length; i++) {
+        if (/UpdateReplacePolicy:\s*Retain/.test(lines[i])) {
+          lines[i] = lines[i].replace('Retain', 'Delete');
+          return lines.join('\n');
+        }
+      }
+      return s;
+    },
+  },
+  {
+    name: 'cert validation options no longer gated on CanManageDns',
+    expect: 'cert validation options are gated on CanManageDns',
+    mutate: (s) => s.replace(/DomainValidationOptions: !If\r?\n\s*- CanManageDns/, 'DomainValidationOptions:'),
   },
   {
     name: 'CloudFront 404 rewritten to the homepage, so a wrong page returns 200',

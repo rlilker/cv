@@ -469,6 +469,30 @@ if (parsed[tplRel]) {
   check('cert covers the www SAN', JSON.stringify(acmProps).includes('www.${DomainName}'));
   check('cert uses DNS validation', acmProps.ValidationMethod === 'DNS');
 
+  // The certificate is minted once and reused. Retain is what guarantees that a
+  // future property change cannot quietly replace it: without it CloudFormation
+  // deletes the old certificate and issues a new one, which needs fresh DNS
+  // validation, briefly leaves the distribution without a certificate, and
+  // spends ACM's quota for duplicate certificates on the same domain.
+  check(
+    'certificate is retained on stack delete',
+    acm?.DeletionPolicy === 'Retain',
+    acm?.DeletionPolicy,
+  );
+  check(
+    'certificate is retained on replacement',
+    acm?.UpdateReplacePolicy === 'Retain',
+    acm?.UpdateReplacePolicy,
+  );
+  // DomainValidationOptions is what most easily flips a replace: it is gated on
+  // CanManageDns, so deploying without ExistingHostedZoneId changes the property
+  // and replaces the certificate.
+  check(
+    'cert validation options are gated on CanManageDns',
+    /DomainValidationOptions:[\s\S]{0,40}!If[\s\S]{0,20}CanManageDns/.test(cfn),
+    'an ungated DomainValidationOptions replaces the cert when the zone id changes',
+  );
+
   // ACM rejects a DomainValidationOptions entry that sets BOTH HostedZoneId
   // and ValidationDomain: "You can only have value for validationDomain or
   // HostedZoneId but not both."

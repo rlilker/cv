@@ -175,8 +175,18 @@ Resources:
   # us-east-1 only, because CloudFront rejects a certificate from any other
   # region. DomainValidationOptions is supplied only when we know the hosted
   # zone id, so ACM can write its own validation records.
+
+  # Retain matters here. Without it, any change to this resource - a different
+  # domain, or DomainValidationOptions toggling as CanManageDns flips - replaces
+  # the certificate. The replacement has to be issued and DNS-validated again,
+  # and the old certificate is deleted, which is a window where the
+  # distribution has nothing to serve. Retain keeps the previous certificate
+  # in place so a swap is not destructive, and an accidental replace does not
+  # spend down the ACM quota for duplicate certificates on this domain.
   Certificate:
     Type: AWS::CertificateManager::Certificate
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       DomainName: !Ref DomainName
       SubjectAlternativeNames:
