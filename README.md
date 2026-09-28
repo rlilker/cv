@@ -269,9 +269,12 @@ any step fails.
 git push origin main
 ```
 
-That is the whole release process. The Deploy workflow builds, verifies, syncs
-to S3, invalidates CloudFront, and then checks the live site. Watch it in the
-Actions tab.
+That is the whole release process. The Deploy workflow builds and verifies
+the baseline `1.0` release first, then increments the minor version for each
+later publish. It syncs to S3, invalidates CloudFront, and checks the live
+site. After those checks pass it records a matching tag (for example, `v1.0`)
+and, for later releases, a `[skip ci]` version commit. The tag and version
+appear in the Actions summary. Watch the run in the Actions tab.
 
 ### Tearing it down
 

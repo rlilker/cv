@@ -92,6 +92,9 @@ section(`CV page (${(html.home.length / 1024).toFixed(1)} KB)`);
 section('Profile');
 check('name', html.home.includes(data.profile.name));
 check('role', html.home.includes(data.profile.role));
+check('updated profile role', data.profile.role === 'Experienced Software Engineer');
+check('30 years of experience', data.profile.yearsExperience === 30 && html.home.includes('30 years of experience'));
+check('first-person introduction', data.profile.intro[0]?.startsWith('I am an Experienced Software Engineer'));
 check('LinkedIn', html.home.includes(data.profile.linkedin));
 check('GitHub', html.home.includes(data.profile.github));
 check('location', html.home.includes(data.profile.location));
@@ -112,9 +115,7 @@ check('no telephone in JSON-LD', !/"telephone"/.test(html.home));
 check('no tagline claim', !html.home.includes('Seeking'), 'the "Seeking Full Stack Development" tagline');
 check('no summary blurb', !html.home.includes('proficiency'), 'the generic "proficient in..." summary');
 check('the long second intro paragraph is gone', !html.home.includes('outlives the project'));
-// The closing CTA is just "Contact Me" next to the two buttons. It used to
-// read "Based in Manchester, UK, and open to new work."
-check('closing CTA says Contact Me', html.home.includes('Contact Me'));
+check('no duplicate Interests contact card', !html.home.includes('class="cta"'));
 check(
   'closing CTA makes no availability claim',
   !/open to new work|open to .* roles/i.test(html.home),
@@ -123,6 +124,8 @@ check(
 check('no tagline field left in the CV data', !('tagline' in data.profile));
 
 section('Employment history');
+check('PortSwigger leads employment history', data.roles[0]?.id === 'portswigger');
+check('PortSwigger Java and .NET work', html.home.includes('Burp Suite Professional') && html.home.includes('Internal Operations'));
 for (const role of data.roles) {
   check(
     `${role.company} (${role.start}–${role.end})`,
@@ -141,6 +144,7 @@ check('bullet lists rendered', bullets === data.roles.filter((r) => r.highlights
 
 const cards = (html.home.match(/class="skill-card/g) || []).length;
 check('every skill group rendered', cards === data.skillGroups.length, `${cards}/${data.skillGroups.length}`);
+check('prior experience is collapsible', html.home.includes('<details class="prior-section"'));
 
 const pills = (html.home.match(/class="interest-pill"/g) || []).length;
 check('every interest rendered', pills === data.interests.length, `${pills}/${data.interests.length}`);
@@ -276,6 +280,7 @@ check('legal pages link to each other', html.privacy.includes('/family-planner/t
 check('nav present on every page', all.every((h) => h.includes('class="nav-pill nav-links"')));
 check('app reachable from the nav on every page', all.every((h) => h.includes('href="/family-planner"')));
 check('CV sections reachable from the nav on every page', all.every((h) => h.includes('href="/#experience"')));
+check('nav behavior loads on every page', all.every((h) => h.includes('IntersectionObserver') && h.includes('.nav-toggle')));
 
 // The brand lozenge was removed. The name still appears elsewhere (footer,
 // JSON-LD, headings), so the check is for the chip element specifically, not
@@ -308,6 +313,8 @@ for (const [key, name] of [
 section('CV page extras');
 check('JSON-LD Person', html.home.includes('"@type": "Person"') || html.home.includes('"@type":"Person"'));
 check('favicon + manifest', html.home.includes('favicon.svg') && html.home.includes('site.webmanifest'));
+check('OpenGraph preview exists', existsSync(resolve(root, 'dist/og-image.png')));
+check('OpenGraph image linked on every page', all.every((h) => h.includes('property="og:image"') && h.includes('/og-image.png')));
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  Assets, accessibility, encoding
@@ -347,26 +354,20 @@ check(
 );
 check('body uses overflow-x: clip', /overflow-x:\s*clip/.test(globalSrc));
 
-// The Family Planner link used to spill past the pill's rounded right edge
-// because the pill could not shrink below its content.
-check(
-  'nav pill can shrink so the project link stays inside it',
-  /\.nav-links\s*\{[^}]*min-width:\s*0/.test(navSrc),
-);
 check('nav project link does not shrink', /\.nav-project\s*\{[^}]*flex:\s*0 0 auto/.test(navSrc));
-check('nav links sit on the right', /\.nav-links\s*\{[^}]*margin-left:\s*auto/.test(navSrc));
-
-// Below 720px the six labels no longer fit on one line. Without letting the
-// pill wrap, the project link was pushed past the right edge and the document
-// scrolled sideways. Verified in a real browser at 380px.
+check('nav pill is centered', /\.nav-pill\s*\{[^}]*margin:\s*0 auto/.test(navSrc));
 check(
-  'nav pill wraps its items on narrow screens',
-  /@media \(max-width: 720px\)[\s\S]*?\.nav-links\s*\{[^}]*flex-wrap:\s*wrap/.test(navSrc),
+  'mobile bar and toggle are present',
+  navSrc.includes('class="mobile-bar"') && navSrc.includes('class="nav-toggle"'),
 );
 check(
-  'nav pill drops white-space: nowrap on narrow screens',
-  /@media \(max-width: 720px\)[\s\S]*?\.nav-links\s*\{[^}]*white-space:\s*normal/.test(navSrc),
+  'mobile menu has ARIA controls',
+  navSrc.includes('aria-expanded="false"') && navSrc.includes('aria-controls="nav-menu"'),
 );
+const navScript = readFileSync(resolve(root, 'src/scripts/nav.ts'), 'utf8');
+check('scroll spy targets rendered /# links', navScript.includes('a[href^="/#"]'));
+check('mobile menu closes on Escape', navScript.includes("e.key === 'Escape'"));
+check('mobile menu traps keyboard focus', navScript.includes("e.key === 'Tab'"));
 
 // A long section count ("62 technologies") with white-space: nowrap forced the
 // whole page into horizontal scroll on a phone. The row now wraps instead.
@@ -473,4 +474,3 @@ if (process.env.VERIFY_DEBUG) {
 }
 
 process.exit(failures === 0 ? 0 : 1);
-

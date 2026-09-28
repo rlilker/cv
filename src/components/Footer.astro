@@ -12,7 +12,7 @@ const updated = new Intl.DateTimeFormat('en-GB', {
     <div class="footer-left">
       <span class="footer-text">
         <span id="local-clock">--:--:--</span>
-        <span class="tz">GMT</span>
+        <span class="tz" id="local-tz">UK</span>
       </span>
       <span class="footer-pipe" aria-hidden="true">|</span>
       <span class="footer-text">{profile.location}</span>
@@ -32,6 +32,7 @@ const updated = new Intl.DateTimeFormat('en-GB', {
   const TIMEZONE = 'Europe/London';
 
   const clock = document.getElementById('local-clock');
+  const tzEl = document.getElementById('local-tz');
 
   if (clock) {
     const format = new Intl.DateTimeFormat('en-GB', {
@@ -42,8 +43,19 @@ const updated = new Intl.DateTimeFormat('en-GB', {
       timeZone: TIMEZONE,
     });
 
+    const tzFormat = new Intl.DateTimeFormat('en-GB', {
+      timeZone: TIMEZONE,
+      timeZoneName: 'short',
+    });
+
     const tick = () => {
-      clock.textContent = format.format(new Date());
+      const now = new Date();
+      clock.textContent = format.format(now);
+      if (tzEl) {
+        const parts = tzFormat.formatToParts(now);
+        const name = parts.find((p) => p.type === 'timeZoneName')?.value;
+        if (name) tzEl.textContent = name;
+      }
     };
 
     tick();
@@ -90,7 +102,7 @@ const updated = new Intl.DateTimeFormat('en-GB', {
   }
 
   .tz {
-    opacity: 0.7;
+    opacity: 1;
   }
 
   .footer-pipe {

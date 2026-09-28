@@ -17,9 +17,9 @@
 
   /* Ink */
   --ink: #000000;
-  --ink-muted: rgba(0, 0, 0, 0.3);
-  --ink-soft: rgba(0, 0, 0, 0.55);
-  --hairline: rgba(0, 0, 0, 0.09);
+  --ink-muted: rgba(0, 0, 0, 0.62);
+  --ink-soft: rgba(0, 0, 0, 0.65);
+  --hairline: rgba(0, 0, 0, 0.12);
 
   /* Accent — indigo lifted from the reference */
   --accent: #5856d6;
@@ -240,5 +240,33 @@ button {
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
+  }
+}
+
+@media print {
+  .top-nav,
+  .skip-link,
+  .project-arrow,
+  .site-footer,
+  .separator {
+    display: none !important;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  .role {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .project-card,
+  .skill-card {
+    box-shadow: none !important;
+    border: 1px solid var(--hairline) !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
   }
 }

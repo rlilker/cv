@@ -599,10 +599,17 @@ for (const [rel, doc] of Object.entries(parsed)) {
   const asText = JSON.stringify(doc);
   check('has a trigger', !!triggers);
   check('triggers on main', JSON.stringify(triggers ?? {}).includes('main'));
-  check('requests an OIDC token', doc.permissions?.['id-token'] === 'write');
-  check('uses OIDC, not static keys', asText.includes('configure-aws-credentials') && !asText.includes('AWS_ACCESS_KEY_ID'));
   check('has a concurrency guard', !!doc.concurrency);
-  check('runs the build verifier', asText.includes('npm run verify'));
+  if (rel.endsWith('/deploy.yml')) {
+    check('requests an OIDC token', doc.permissions?.['id-token'] === 'write');
+    check('can record release tags', doc.permissions?.contents === 'write');
+    check('uses OIDC, not static keys', asText.includes('configure-aws-credentials') && !asText.includes('AWS_ACCESS_KEY_ID'));
+    check('runs the build verifier', asText.includes('npm run verify'));
+    check('records a verified publish', asText.includes('scripts/bump-version.mjs') && asText.includes('git push --atomic'));
+  } else {
+    check('check workflow stays read-only', doc.permissions?.contents === 'read' && !doc.permissions?.['id-token']);
+    check('runs the test suite', asText.includes('npm test'));
+  }
 }
 
 console.log(`\n${failures === 0 ? 'ALL INFRA CHECKS PASSED' : `${failures} INFRA CHECK(S) FAILED`}\n`);

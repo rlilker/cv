@@ -31,7 +31,7 @@ const description = profile.intro.join(' ');
     <Separator />
 
     <section class="section projects" id="projects">
-      <SectionTitle title="Projects" meta={`${projectLinks.length} side project`} />
+      <SectionTitle title="Projects" meta="Featured Project" />
 
       <ul class="project-list">
         {
@@ -62,11 +62,6 @@ const description = profile.intro.join(' ');
 
   <Footer />
 </BaseLayout>
-
-<script>
-  // Bundled and executed in the browser only — never during the static build.
-  import '../scripts/nav';
-</script>
 
 <style>
   .page {

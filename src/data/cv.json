@@ -2,17 +2,33 @@
   "profile": {
     "name": "Ryan Lilker",
     "firstName": "Ryan",
-    "role": "Principal Software Developer",
+    "role": "Experienced Software Engineer",
     "location": "Manchester, UK",
     "timezone": "Europe/London",
     "linkedin": "https://www.linkedin.com/in/ryanlilker/",
     "github": "https://github.com/rlilker",
-    "yearsExperience": 25,
+    "yearsExperience": 30,
     "intro": [
-      "Ryan is a Principal Software Developer based in Manchester, UK, with 25 years of experience building and running production software end to end."
+      "I am an Experienced Software Engineer based in Manchester, UK, with 30 years of experience designing, building, and operating production software at scale."
     ]
   },
   "roles": [
+    {
+      "id": "portswigger",
+      "title": "Software Engineer",
+      "company": "PortSwigger",
+      "start": "December 2022",
+      "end": "Present",
+      "summary": "Full-stack engineer contributing across both flagship product engineering and mission-critical business platforms in an agile, flat-hierarchy engineering culture.",
+      "highlights": [
+        "Burp Suite Professional: Designed and shipped new features in Java for PortSwigger's flagship security testing desktop toolkit, used daily by over 80,000 penetration testers and security professionals worldwide.",
+        "Practiced rigorous Test-Driven Development (TDD) and Extreme Programming (XP) with continuous pair programming, engineering concurrent, performant Java code integrated into complex security workflows.",
+        "Internal Operations: Engineered and maintained high-availability backend services and platforms in .NET (C#) and SQL Server/PostgreSQL, powering automated software licensing, global payment processing, and subscription renewals.",
+        "Modernized core operational infrastructure and internal services on AWS, improving system reliability, auditability, and operational automation across business-critical pipelines.",
+        "Collaborated across cross-functional squads to uphold high code-quality bars, collective code ownership, and continuous integration."
+      ],
+      "stack": ["Java", ".NET", "C#", "SQL Server", "PostgreSQL", "AWS", "TDD", "XP", "CI/CD", "Docker"]
+    },
     {
       "id": "made-tech",
       "title": "Lead Software Engineer",
@@ -20,12 +36,12 @@
       "type": "Contract",
       "start": "August 2022",
       "end": "November 2022",
-      "summary": "Short contract bridging into the cloud and modern tooling, picking up a wide new stack quickly.",
+      "summary": "Rapidly onboarded across a modern cloud-native stack, delivering full-stack features and automated testing across multiple technologies.",
       "highlights": [
-        "Built on existing skills, learning AWS Cloud, Terraform, Ruby on Rails including unit testing in RSpec, Python, Apache Spark, and Elixir.",
-        "Designed, created, and implemented a new Google Add-On utilising Google App Scripts using TypeScript, Rollup.js and Babel, with unit testing in Jest."
+        "Engineered cloud infrastructure and services using AWS, Terraform, Ruby on Rails (with RSpec), Python, Apache Spark, and Elixir.",
+        "Designed and implemented a Google Add-On with Google Apps Script using TypeScript, Rollup.js, Babel, and Jest."
       ],
-      "stack": ["AWS", "Terraform", "Ruby on Rails", "RSpec", "Python", "Apache Spark", "Elixir", "TypeScript", "App Scripts"]
+      "stack": ["AWS", "Terraform", "Ruby on Rails", "RSpec", "Python", "Apache Spark", "Elixir", "TypeScript", "Apps Script"]
     },
     {
       "id": "cmap-software",
@@ -35,21 +51,21 @@
       "end": "July 2022",
       "summary": "Principal engineer and tech lead on a field-service SaaS platform — from a single client to 400+ customers, 22,000 users and £7m ARR.",
       "highlights": [
-        "Developed a new SaaS product utilising the latest technologies — starting with one client and working up to 400+ clients and 22,000 users worldwide generating £7m ARR.",
-        "Created and implemented departmental processes and documentation such as coding standards and practices, architectural guidelines, source control branching strategies, product documentation, and pull requests/peer reviews — saving time and improving overall quality.",
-        "Successfully instituted Unit Testing and TDD on a large legacy codebase (500k lines) from 0% coverage to 25%+ over 2 years.",
-        "Automated the CI/CD pipelines to build and run unit tests utilising Jenkins and VSTS/Azure DevOps, removing the need for error-prone manual processes.",
-        "Transitioned from a Waterfall based process to Agile and then Kanban – releasing builds nightly.",
-        "Established static analysis tooling (Sonarqube), leading to improved metrics on code quality and security.",
-        "Utilised and directly responsible for Source Control systems, moving from SourceSafe, to TFS, to Git, to Azure DevOps repositories.",
-        "Database development including designing, indexing, updating, and querying — resulting in an improved user experience.",
-        "Gained experience in ASP.NET MVC (2-5 including Razor), OpenXML, JQuery, Redis, Dapper, LINQ, TypeScript, and SignalR.",
-        "Developed and maintained mobile applications using Xamarin Forms, Ionic Framework (solo projects), and React Native.",
-        "Oversaw and facilitated daily Scrum meetings incorporating planning sessions and retrospectives on large themed seasonal releases.",
-        "Direct involvement in transitioning from, and management of, an on-site solution to managed server, then cloud-based architecture using Microsoft Azure.",
-        "Progressed from Software Developer, to Senior Software Developer, to Team Lead, to Principal Software Developer.",
+        "Engineered and scaled a SaaS platform from an initial prototype to over 400 clients, 22,000 active users worldwide, and £7m ARR.",
+        "Created and implemented departmental engineering standards, architectural guidelines, branching strategies, and pull requests/peer reviews.",
+        "Successfully instituted Unit Testing and TDD on a large legacy codebase (500k lines), raising coverage from 0% to 25%+ over 2 years.",
+        "Automated CI/CD pipelines to build and run unit tests using Jenkins and Azure DevOps, removing error-prone manual processes.",
+        "Transitioned from a Waterfall process to Agile and Kanban, releasing builds nightly.",
+        "Established static analysis tooling (SonarQube) to raise code quality and security standards.",
+        "Directed source control migrations, transitioning legacy repositories through TFS, Git, and Azure DevOps.",
+        "Led database development including schema design, indexing, and query optimization for enhanced user experience.",
+        "Architected and delivered web applications using ASP.NET MVC (2–5, Razor), OpenXML, jQuery, Redis, Dapper, LINQ, TypeScript, and SignalR.",
+        "Developed and maintained mobile applications using Xamarin Forms, Ionic Framework, and React Native.",
+        "Facilitated daily Scrum meetings, sprint planning, and retrospectives on large seasonal releases.",
+        "Led the architectural migration from on-premise infrastructure to managed servers and Microsoft Azure cloud architecture.",
+        "Progressed from Software Developer, to Senior Software Developer, Team Lead, and Principal Software Developer.",
         "Mentored and line managed a team of 12 developers across 4 squads at various levels of skill and experience.",
-        "Interacted regularly with clients at all levels, third parties including outsourced development teams, department heads and the board during all stages of product development, and reported to the board monthly on departmental performance."
+        "Interacted regularly with enterprise clients, third-party partners, department heads, and the board on product delivery and strategy."
       ],
       "stack": ["ASP.NET MVC", "C#", ".NET", "TypeScript", "jQuery", "SignalR", "Redis", "Dapper", "SQL Server", "Azure", "Jenkins", "Azure DevOps", "SonarQube"]
     },
@@ -61,7 +77,7 @@
       "end": "March 2010",
       "summary": "Reporting work for a Delphi-based software house.",
       "highlights": [
-        "Successfully implemented a custom report builder utilising ASP.NET and Crystal Reports for a Delphi-based software house."
+        "Implemented a custom report builder using ASP.NET and Crystal Reports for a Delphi-based software house."
       ],
       "stack": ["ASP.NET", "Crystal Reports"]
     },
@@ -71,10 +87,10 @@
       "company": "Athletic Logic",
       "start": "July 2008",
       "end": "September 2009",
-      "summary": "Owned all web application development and the SDLC for sports-sector clients.",
+      "summary": "Owned web application development and SDLC for sports-sector clients.",
       "highlights": [
-        "Responsible for all web-based application development and SDLC.",
-        "Increased knowledge in .NET, gaining experience in .NET 3.5 (C# and VB.NET) with SQL 2008, Silverlight including streaming media, IIS7, Windows application development, and Developer Express.",
+        "Responsible for all web-based application development and the SDLC.",
+        "Increased expertise in .NET, working with .NET 3.5 (C# and VB.NET), SQL 2008, Silverlight media streaming, IIS7, and Windows applications.",
         "Fostered relationships with key clients, including world leading sports associations and clubs."
       ],
       "stack": [".NET 3.5", "C#", "VB.NET", "SQL Server 2008", "Silverlight", "IIS7"]
@@ -88,9 +104,9 @@
       "summary": "Full SDLC across a portfolio of external clients for a bespoke software agency.",
       "highlights": [
         "Created, expanded, and maintained websites and applications for a bespoke software agency.",
-        "Direct involvement in the full SDLC and responsible for several external clients and projects.",
-        "Increased knowledge in .NET 1.1 and 2.0 (C# and VB.NET), Microsoft SQL Server 2000 and 2005 database design, development and administration.",
-        "Added experience in the generation of Office documents using Office Automation in .NET, Microsoft Sharepoint, AJAX, COM+, Dundas Charts and XML.",
+        "Direct involvement in the full SDLC, leading delivery for multiple external client projects.",
+        "Expanded expertise in .NET 1.1 and 2.0 (C# and VB.NET), Microsoft SQL Server 2000 and 2005 database design, development and administration.",
+        "Engineered Office document generation solutions using .NET, SharePoint, AJAX, COM+, Dundas Charts, and XML.",
         "Supported and advised customers by email, telephone and face-to-face."
       ],
       "stack": [".NET 1.1/2.0", "C#", "VB.NET", "SQL Server 2000/2005", "SharePoint", "AJAX", "XML"]
@@ -117,7 +133,7 @@
       "end": "July 2005",
       "summary": "Port of a VB6 application to VB.NET, refactored for performance and scale.",
       "highlights": [
-        "Worked on a new VB.Net version of an existing VB6 application for use in the laboratories and various other departments within the company, refactoring and reorganising existing code for performance and scalability."
+        "Worked on a new VB.Net version of an existing VB6 application for use in laboratories and internal departments, refactoring and reorganising code for performance and scalability."
       ],
       "stack": ["VB.NET", "VB6"]
     },
@@ -129,10 +145,10 @@
       "end": "May 2005",
       "summary": "Maintained and developed a dealership internet application used across 300+ sites.",
       "highlights": [
-        "Responsible for the maintenance and development of an ASP (VBScript) based internet application used in over 300 car dealerships across the UK and Ireland.",
+        "Maintained and developed an ASP (VBScript) internet application used in over 300 car dealerships across the UK and Ireland.",
         "Direct involvement in the full SDLC.",
-        "Gained experience with Microsoft Visual Studio.NET (C#) utilising XML, SQL Server Reporting Services, ASP.NET, Web Services and Windows applications.",
-        "Designed and maintained Microsoft SQL Server databases, with experience of stored procedures, triggers and Data Transformation Services (DTS) using T-SQL and VBScript."
+        "Built software using Microsoft Visual Studio .NET (C#), XML, SQL Server Reporting Services, ASP.NET, Web Services, and Windows applications.",
+        "Designed and maintained Microsoft SQL Server databases, developing stored procedures, triggers, and Data Transformation Services (DTS) using T-SQL and VBScript."
       ],
       "stack": ["ASP", "VBScript", "C#", "ASP.NET", "SQL Server", "SSRS", "DTS", "T-SQL"]
     },
@@ -144,8 +160,8 @@
       "end": "April 2002",
       "summary": "Built and ran a high-specification extranet used across four continents.",
       "highlights": [
-        "Developed and maintained an innovative and high specification extranet for use throughout the business across four continents — utilising HTML, DHTML, ASP (VBScript), JavaScript, SQL Server 7.0/2000, and VB6 (inc. ActiveX and COM).",
-        "Responsible for the training and supervision of a junior HTML developer and for all maintenance of the group website."
+        "Developed and maintained an innovative extranet used throughout the business across four continents — using HTML, DHTML, ASP (VBScript), JavaScript, SQL Server 7.0/2000, and VB6 (inc. ActiveX and COM).",
+        "Supervised and trained junior developers and managed maintenance of the corporate website."
       ],
       "stack": ["HTML", "DHTML", "ASP", "VBScript", "JavaScript", "SQL Server 7.0/2000", "VB6", "COM"]
     },
@@ -157,7 +173,7 @@
       "end": "October 2001",
       "summary": "Broad web and CD-ROM software development for a digital content agency.",
       "highlights": [
-        "Developed, modified and tested a wide range of software for use via the internet and CD-ROM utilising HTML, DHTML, ASP, VBScript, JavaScript, VBScript, VB6 and T-SQL."
+        "Developed, modified and tested software for use via the internet and CD-ROM using HTML, DHTML, ASP, VBScript, JavaScript, VB6 and T-SQL."
       ],
       "stack": ["HTML", "DHTML", "ASP", "VBScript", "JavaScript", "VB6", "T-SQL"]
     },
@@ -176,7 +192,7 @@
       "company": "Blemain Group Plc",
       "start": "September 1997",
       "end": "October 1999",
-      "summary": "Desktop support — the start of a 25 year technology career.",
+      "summary": "Desktop support — the foundation of a 30-year career in software and systems engineering.",
       "highlights": []
     }
   ],
@@ -185,84 +201,74 @@
       "id": "backend",
       "title": "Backend & Languages",
       "items": [
+        "Java",
         "C#",
-        ".NET 1.1 – 6.0",
-        "ASP.NET",
-        "ASP.NET MVC (2–5, Razor)",
+        ".NET (Core – 8)",
+        "ASP.NET MVC",
         "REST APIs & Web Services",
         "LINQ",
-        "Ruby on Rails",
         "Python",
+        "Ruby on Rails",
         "Elixir",
-        "T-SQL",
-        "VBScript"
+        "T-SQL"
       ]
     },
     {
       "id": "frontend",
       "title": "Frontend",
-      "items": ["TypeScript", "JavaScript", "jQuery", "CSS", "LESS", "SCSS", "SASS", "SignalR", "HTML5"]
+      "items": ["TypeScript", "JavaScript", "React", "HTML5", "CSS", "SCSS", "SignalR", "jQuery"]
     },
     {
       "id": "data",
       "title": "Databases",
       "items": [
-        "SQL Server 7.0 – 2016",
+        "PostgreSQL",
+        "SQL Server",
         "Azure SQL",
+        "Redis",
         "Stored Procedures",
-        "Triggers",
-        "Indexing",
-        "Backup & Restore",
-        "Redis"
+        "Database Indexing & Tuning",
+        "Backup & Replication"
       ]
     },
     {
       "id": "cloud",
       "title": "Cloud & Infrastructure",
-      "items": ["AWS", "Microsoft Azure", "Terraform", "Apache Spark", "Managed Servers"]
+      "items": ["AWS", "Microsoft Azure", "Terraform", "Docker", "Apache Spark", "Cloud Architecture"]
     },
     {
       "id": "delivery",
       "title": "Delivery & Quality",
       "items": [
-        "CI/CD — Jenkins",
-        "Azure DevOps",
-        "AWS CodePipeline",
-        "Unit Testing — xUnit, NUnit, Jest",
         "TDD",
+        "Extreme Programming (XP)",
+        "Pair Programming",
+        "CI/CD Pipelines",
+        "Automated Testing",
         "Code Review & Pull Requests",
-        "Scrum & Kanban",
-        "SonarQube / SonarCloud",
-        "Google Apps Script",
-        "Rollup.js",
-        "Babel"
+        "Agile, Scrum & Kanban",
+        "SonarQube / SonarCloud"
       ]
     },
     {
       "id": "source-control",
-      "title": "Source Control",
-      "items": ["Git", "Azure DevOps Repos", "Team Foundation Server", "SVN", "Visual SourceSafe"]
+      "title": "Source Control & Tools",
+      "items": ["Git", "GitHub", "Azure DevOps Repos", "Linux", "Node.js"]
     },
     {
       "id": "mobile",
-      "title": "Mobile",
-      "items": ["React Native", "Xamarin Forms", "SQLite", "Ionic Framework (Angular 2, TypeScript)"]
-    },
-    {
-      "id": "office",
-      "title": "Office & Documents",
-      "items": ["Office '97 – Office 365", "OpenXML (.NET)", "Office Automation", "Access & Macros"]
+      "title": "Mobile Development",
+      "items": ["React Native", "Xamarin Forms", "SQLite", "Ionic Framework"]
     },
     {
       "id": "leadership",
-      "title": "Leadership",
+      "title": "Leadership & Architecture",
       "items": [
-        "Line Management (12 people, 4 squads)",
-        "Architecture & Code Quality",
-        "Mentoring",
-        "Client & Stakeholder Liaison",
-        "Process & Standards",
-        "Technical Support"
+        "Team Leadership & Line Management",
+        "System Architecture & Design",
+        "Engineering Standards & Quality",
+        "Developer Mentoring",
+        "Stakeholder Collaboration"
       ]
     }
   ],

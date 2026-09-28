@@ -1,16 +1,14 @@
 ---
 import { skillGroups } from '../data/cv';
 import SectionTitle from './SectionTitle.astro';
-
-const total = skillGroups.reduce((sum, group) => sum + group.items.length, 0);
 ---
 
 <section class="section skills" id="skills">
-  <SectionTitle title="Skills" meta={`${total} technologies`} />
+  <SectionTitle title="Skills" meta="Core Stack & Expertise" />
 
   <p class="section-desc">
-    Two and a half decades of shipping production software — the tools below are the ones
-    actually used in anger, not a keyword list.
+    Three decades of designing and shipping production software — core languages, cloud platforms,
+    and engineering practices proven in real-world systems.
   </p>
 
   <div class="skill-grid">

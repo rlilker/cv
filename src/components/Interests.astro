@@ -1,5 +1,5 @@
 ---
-import { interests, profile } from '../data/cv';
+import { interests } from '../data/cv';
 import SectionTitle from './SectionTitle.astro';
 ---
 
@@ -8,9 +8,7 @@ import SectionTitle from './SectionTitle.astro';
 
   <div class="interests-body">
     <p class="interests-copy">
-      Away from the keyboard it is mostly family and friends, reading, and guitar —
-      with an ongoing campaign to improve my Spanish, a habit of cooking, and a
-      reliable supply of puzzles to lose an evening to.
+      Away from engineering, I make time for family, curiosity, and the things that help me recharge.
     </p>
 
     <ul class="interest-pills">
@@ -25,18 +23,6 @@ import SectionTitle from './SectionTitle.astro';
     </ul>
   </div>
 
-  <div class="cta">
-    <p class="cta-text">Contact Me</p>
-
-    <div class="cta-actions">
-      <a class="cta-btn primary" href={profile.linkedin} target="_blank" rel="noopener noreferrer">
-        LinkedIn
-      </a>
-      <a class="cta-btn" href={profile.github} target="_blank" rel="noopener noreferrer">
-        GitHub
-      </a>
-    </div>
-  </div>
 </section>
 
 
@@ -93,82 +79,4 @@ import SectionTitle from './SectionTitle.astro';
     background: var(--accent);
   }
 
-  /* ── Closing call to action ──────────────────────────────────────────── */
-
-  .cta {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 20px;
-    width: 100%;
-    margin-top: 12px;
-    padding: 30px 34px;
-    border-radius: 20px;
-    background: var(--surface);
-    box-shadow: var(--shadow-btn);
-  }
-
-  .cta-text {
-    font-size: 19px;
-    color: var(--ink-soft);
-  }
-
-  .cta-text strong {
-    font-weight: 600;
-    color: var(--ink);
-  }
-
-  .cta-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-  }
-
-  .cta-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 46px;
-    padding: 0 26px;
-    border-radius: var(--radius-card);
-    background: var(--bg);
-    box-shadow: inset 0 0 0 1px var(--hairline);
-    font-size: 15px;
-    font-weight: 500;
-    white-space: nowrap;
-    transition:
-      transform var(--dur) var(--ease),
-      background var(--dur) var(--ease),
-      color var(--dur) var(--ease);
-  }
-
-  .cta-btn.primary {
-    background: var(--accent);
-    color: var(--accent-ink);
-    box-shadow: none;
-  }
-
-  .cta-btn:hover {
-    transform: translateY(-2px);
-  }
-
-  .cta-btn:not(.primary):hover {
-    background: var(--accent);
-    color: var(--accent-ink);
-  }
-
-  @media (max-width: 560px) {
-    .cta {
-      padding: 24px;
-    }
-
-    .cta-actions {
-      width: 100%;
-    }
-
-    .cta-btn {
-      flex: 1 1 auto;
-    }
-  }
 </style>

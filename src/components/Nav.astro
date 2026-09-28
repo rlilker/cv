@@ -1,31 +1,56 @@
 ---
-import { navSections, projectLinks } from '../data/cv';
+import { navSections, projectLinks, profile } from '../data/cv';
 
 const { current } = Astro.props as { current?: string };
 ---
 
 <header class="top-nav">
-  <nav class="nav-pill nav-links" aria-label="Sections">
-    {
-      navSections.map((section) => (
-        <a href={`/#${section.id}`} aria-current={current === section.id ? 'true' : undefined}>
-          {section.label}
-        </a>
-      ))
-    }
-    {
-      projectLinks.map((project) => (
-        <a
-          class="nav-project"
-          href={project.href}
-          aria-current={current === 'projects' ? 'true' : undefined}
-        >
-          {project.label}
-        </a>
-      ))
-    }
+  <nav class="nav-pill nav-links" aria-label="Sections" id="main-nav">
+    <div class="mobile-bar">
+      <a href="/#introduction" class="mobile-brand" aria-label="Home">
+        <span>{profile.name}</span>
+      </a>
+      <button
+        class="nav-toggle"
+        type="button"
+        aria-expanded="false"
+        aria-controls="nav-menu"
+        aria-label="Open navigation menu"
+      >
+        <span class="hamburger" aria-hidden="true">
+          <span class="bar bar-1"></span>
+          <span class="bar bar-2"></span>
+          <span class="bar bar-3"></span>
+        </span>
+      </button>
+    </div>
+
+    <div class="nav-menu" id="nav-menu">
+      {
+        navSections.map((section) => (
+          <a href={`/#${section.id}`} aria-current={current === section.id ? 'true' : undefined}>
+            {section.label}
+          </a>
+        ))
+      }
+      {
+        projectLinks.map((project) => (
+          <a
+            class="nav-project"
+            href={project.href}
+            aria-current={current === 'projects' ? 'true' : undefined}
+          >
+            {project.label}
+          </a>
+        ))
+      }
+    </div>
   </nav>
 </header>
+
+<script>
+  import '../scripts/nav';
+</script>
 
 <style>
   .top-nav {
@@ -38,9 +63,7 @@ const { current } = Astro.props as { current?: string };
     padding: 20px var(--gutter);
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    /* the strip is an overlay; only the pills should catch clicks */
+    justify-content: center;
     pointer-events: none;
   }
 
@@ -54,32 +77,39 @@ const { current } = Astro.props as { current?: string };
     border-radius: var(--radius-pill);
     box-shadow: var(--shadow-pill);
     pointer-events: auto;
+    margin: 0 auto;
+    transition:
+      background var(--dur) var(--ease),
+      box-shadow var(--dur) var(--ease),
+      border-radius var(--dur) var(--ease);
   }
 
-  .nav-links {
+  .mobile-bar {
+    display: none;
+  }
+
+  .nav-menu {
+    display: flex;
+    align-items: center;
     padding: 0 28px;
     gap: 28px;
     font-size: 15px;
     font-weight: 500;
     line-height: 1.2;
     white-space: nowrap;
-    /* Sits on the right now that the brand lozenge is gone, where the links
-       already were. */
-    margin-left: auto;
-    /* Without this the pill refuses to shrink below its content and the
-       Family Planner link spills past its rounded right edge. */
-    min-width: 0;
   }
 
-  .nav-links a {
+  .nav-menu a {
     position: relative;
     padding: 4px 2px;
     color: var(--ink);
-    opacity: 0.62;
-    transition: opacity var(--dur) var(--ease);
+    opacity: 0.7;
+    transition:
+      opacity var(--dur) var(--ease),
+      color var(--dur) var(--ease);
   }
 
-  .nav-links a::after {
+  .nav-menu a::after {
     content: '';
     position: absolute;
     left: 0;
@@ -93,25 +123,21 @@ const { current } = Astro.props as { current?: string };
     transition: transform var(--dur) var(--ease);
   }
 
-  .nav-links a:hover,
-  .nav-links a[aria-current='true'] {
+  .nav-menu a:hover,
+  .nav-menu a[aria-current='true'] {
     opacity: 1;
+    color: var(--ink);
   }
 
-  .nav-links a:hover::after,
-  .nav-links a[aria-current='true']::after {
+  .nav-menu a:hover::after,
+  .nav-menu a[aria-current='true']::after {
     transform: scaleX(1);
   }
 
-  /* The project link is a different kind of destination from the in-page
-     section anchors, so mark it with an accent dot rather than an underline. */
   .nav-project {
     display: inline-flex;
     align-items: center;
     gap: 7px;
-    /* The dot plus the longest label has to fit inside the pill. Without an
-       explicit no-shrink basis the flex item could be squeezed and the link
-       would read as hanging off the end of the container. */
     flex: 0 0 auto;
   }
 
@@ -139,37 +165,136 @@ const { current } = Astro.props as { current?: string };
     opacity: 1;
   }
 
+  /* ── Mobile Layout (<= 720px) ────────────────────────────────────────── */
+
   @media (max-width: 720px) {
     .top-nav {
-      padding: 14px 16px;
-      flex-wrap: wrap;
+      padding: 12px 16px;
+      justify-content: center;
     }
 
-    .nav-links {
-      /* Full width on narrow screens so the items stay reachable. The links
-         were previously the second child and needed `order` to sit below the
-         brand lozenge; with only the links left, order would be a no-op. */
+    .nav-pill {
+      flex-direction: column;
+      align-items: stretch;
       width: 100%;
-      margin-left: 0;
+      max-width: 440px;
+      height: auto;
+      border-radius: 24px;
+      padding: 4px 8px;
+    }
+
+    .mobile-bar {
+      display: flex;
+      align-items: center;
       justify-content: space-between;
-      gap: 12px;
-      padding: 0 20px;
-      font-size: 14px;
+      height: 44px;
+      padding: 0 10px;
+    }
+
+    .mobile-brand {
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      color: var(--ink);
+    }
+
+    .nav-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.04);
+      color: var(--ink);
+      transition: background var(--dur) var(--ease);
+    }
+
+    .nav-toggle:hover {
+      background: rgba(0, 0, 0, 0.08);
+    }
+
+    .hamburger {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 4px;
+      width: 18px;
+      height: 18px;
+    }
+
+    .bar {
+      width: 18px;
+      height: 1.5px;
+      background: var(--ink);
+      border-radius: 2px;
+      transition:
+        transform var(--dur) var(--ease),
+        opacity var(--dur) var(--ease);
+    }
+
+    /* Animated hamburger -> X */
+    .nav-pill.is-open .bar-1 {
+      transform: translateY(5.5px) rotate(45deg);
+    }
+
+    .nav-pill.is-open .bar-2 {
+      opacity: 0;
+    }
+
+    .nav-pill.is-open .bar-3 {
+      transform: translateY(-5.5px) rotate(-45deg);
+    }
+
+    .nav-menu {
+      flex-direction: column;
+      align-items: stretch;
+      padding: 0 6px;
+      gap: 4px;
+      max-height: 0;
+      opacity: 0;
+      visibility: hidden;
+      overflow: hidden;
+      transform: translateY(-8px);
+      transition: max-height var(--dur) var(--ease), opacity var(--dur) var(--ease),
+        transform var(--dur) var(--ease), visibility var(--dur);
+    }
+
+    .nav-pill.is-open .nav-menu {
+      max-height: 420px;
+      padding: 8px 6px 12px;
+      border-top: 1px solid var(--hairline);
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+    }
+
+    .nav-menu a {
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 500;
+      opacity: 0.85;
+      transition:
+        background var(--dur) var(--ease),
+        color var(--dur) var(--ease);
+    }
+
+    .nav-menu a::after {
+      display: none;
+    }
+
+    .nav-menu a:hover,
+    .nav-menu a[aria-current='true'] {
+      background: rgba(88, 86, 214, 0.1);
+      color: var(--accent);
+      opacity: 1;
     }
   }
 
-  /* Below ~720px the section labels plus the project label no longer fit on one
-     line, and `white-space: nowrap` on the pill meant the Family Planner link
-     was pushed past the right edge and the document scrolled sideways. Letting
-     the items wrap onto a second row keeps every label inside the pill. */
-  @media (max-width: 720px) {
-    .nav-links {
-      flex-wrap: wrap;
-      white-space: normal;
-      row-gap: 4px;
-      padding-top: 8px;
-      padding-bottom: 8px;
-      height: auto;
-    }
+  @media (prefers-reduced-motion: reduce) {
+    .nav-menu,
+    .bar { transition: none; }
   }
 </style>
