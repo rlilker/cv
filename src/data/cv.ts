@@ -85,9 +85,9 @@ export interface ProjectLink {
 
 export const projectLinks: ProjectLink[] = [
   {
-    id: 'family-planner',
-    label: 'Family Planner',
-    href: '/family-planner',
+    id: 'family-assistant',
+    label: 'Family Assistant',
+    href: '/family-assistant',
     blurb: 'A self-hosted pipeline that turns a family’s Gmail into a shared calendar, using a language model running on a Raspberry Pi.',
   },
 ];

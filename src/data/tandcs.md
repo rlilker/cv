@@ -1,6 +1,6 @@
 **Terms & Conditions**  
 
-These terms and conditions apply to the Family Planner app for mobile devices and Windows devices, together with any related services operated by Ryan Lilker (collectively, the "Application"). Ryan Lilker is hereby referred to as the "Service Provider".
+These terms and conditions apply to the Family Assistant app for mobile devices and Windows devices, together with any related services operated by Ryan Lilker (collectively, the "Application"). Ryan Lilker is hereby referred to as the "Service Provider".
 
 By downloading or using the Application, you agree to these Terms and Conditions. You should read them carefully before using the Application.
 

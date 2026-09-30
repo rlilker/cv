@@ -12,16 +12,16 @@ export default defineConfig({
   output: 'static',
   compressHTML: true,
   // 'file', not 'directory'. With 'directory' a page at
-  // src/pages/family-planner/index.astro is emitted as
-  // family-planner/index.html, and S3 stores it under that key.
+  // src/pages/family-assistant/index.astro is emitted as
+  // family-assistant/index.html, and S3 stores it under that key.
   //
-  // A request for /family-planner/ then asks S3 for the key "family-planner/",
+  // A request for /family-assistant/ then asks S3 for the key "family-assistant/",
   // which is a prefix, not an object. S3 answers 403, CloudFront's 403 rule
   // rewrites it to /index.html, and the visitor silently gets the CV homepage
   // on every project and legal page. The files are uploaded correctly; only
   // the URL resolution is wrong.
   //
-  // 'file' emits family-planner.html instead, so /family-planner maps straight
+  // 'file' emits family-assistant.html instead, so /family-assistant maps straight
   // at a real object and no CloudFront Function is needed to fix it up.
   build: {
     format: 'file',

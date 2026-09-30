@@ -192,7 +192,7 @@ jobs:
           # Each route is checked for the marker that page must contain, not
           # just for a 200. A status-only check passes even when the wrong
           # document is served: CloudFront's 403 rule rewrites unknown paths to
-          # /index.html, so /family-planner returned 200 with the CV on it and
+          # /index.html, so /family-assistant returned 200 with the CV on it and
           # the status check was perfectly happy.
           check_page() {
             local path="$1" marker="$2" label="$3"
@@ -213,9 +213,9 @@ jobs:
           step "Each route serves its own page"
           # Markers are unique to the page, so a wrong-but-200 response fails.
           check_page "/" "Experienced Software Engineer" "CV"
-          check_page "/family-planner" "Family Gmail to shared calendar" "Family Planner"
-          check_page "/family-planner/privacy" "Privacy Policy" "Privacy policy"
-          check_page "/family-planner/terms" "Terms &amp; Conditions" "Terms"
+          check_page "/family-assistant" "Family Gmail to shared calendar" "Family Assistant"
+          check_page "/family-assistant/privacy" "Privacy Policy" "Privacy policy"
+          check_page "/family-assistant/terms" "Terms &amp; Conditions" "Terms"
 
           step "Content is really published"
           body=$(curl -sSL --max-time 20 "$SITE/" || true)
@@ -224,7 +224,7 @@ jobs:
                       "PortSwigger:employer" \
                       "CMap Software:employer" \
                       "iSOFT plc:employer" \
-                      "Family Planner:projects link" \
+                      "Family Assistant:projects link" \
                       "application/ld+json:JSON-LD"; do
             needle=${pair%%:*}
             label=${pair##*:}

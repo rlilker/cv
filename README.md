@@ -1,7 +1,7 @@
 # ryanlilker.com
 
 Ryan Lilker's CV, as a static site, plus a page for the
-[Family Planner](https://github.com/rlilker/family-planner) app. Built with
+[Family Assistant](https://github.com/rlilker/family-planner) app. Built with
 [Astro](https://astro.build), deployed to S3 + CloudFront by GitHub Actions.
 
 Visual language adapted from the one-page CV at
@@ -11,12 +11,12 @@ navigation, large muted section headings, thick white separators.
 
 ### Pages
 
-| Route                       | Source                                   |
-| --------------------------- | ---------------------------------------- |
-| `/`                         | CV — `src/data/cv.json`                  |
-| `/family-planner`           | App overview — `src/data/family-planner.json` |
-| `/family-planner/privacy`   | Rendered from `src/data/privacypolicy.md` |
-| `/family-planner/terms`     | Rendered from `src/data/tandcs.md`       |
+| Route                         | Source                                        |
+| ----------------------------- | --------------------------------------------- |
+| `/`                           | CV — `src/data/cv.json`                       |
+| `/family-assistant`           | App overview — `src/data/family-assistant.json` |
+| `/family-assistant/privacy`   | Rendered from `src/data/privacypolicy.md`      |
+| `/family-assistant/terms`     | Rendered from `src/data/tandcs.md`            |
 
 Routes have no trailing slash and no `.html` suffix: Astro's `build.format` is
 `'file'`, so each page is emitted as `<route>.html` and S3 serves it directly

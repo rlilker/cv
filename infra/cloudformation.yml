@@ -246,9 +246,9 @@ Resources:
 
   # ── Path resolution ────────────────────────────────────────────────────────
   #
-  #  Astro's build.format 'file' emits family-planner.html, so the public URL
+  #  Astro's build.format 'file' emits family-assistant.html, so the public URL
   #  has no extension. CloudFront forwards the path to S3 unchanged and S3 has
-  #  no key called "family-planner", so without this every page except the
+  #  no key called "family-assistant", so without this every page except the
   #  explicit .html URL returns 403.
   #
   #  This appends .html for paths that have no file extension. Paths that
@@ -284,7 +284,7 @@ Resources:
           }
           // A path that already ends in a slash is a directory-style URL; the
           // build does not emit those, but strip it rather than produce
-          // "family-planner/.html".
+          // "family-assistant/.html".
           if (path.charAt(path.length - 1) === '/') {
             path = path.slice(0, -1);
           }
@@ -330,8 +330,8 @@ Resources:
           CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
           ResponseHeadersPolicyId: !Ref ResponseHeadersPolicy
           # CloudFront does not resolve directory indexes for an S3 origin. A
-          # request for "/" or "/family-planner" is passed to S3 verbatim, and
-          # the key "/" or "family-planner" does not exist, so S3 answers 403;
+          # request for "/" or "/family-assistant" is passed to S3 verbatim, and
+          # the key "/" or "family-assistant" does not exist, so S3 answers 403;
           # only an explicit "/index.html" is found. AppendHtmlFunction maps the
           # extensionless public URL onto the file the build actually emitted.
           FunctionAssociations:
@@ -344,7 +344,7 @@ Resources:
               FunctionARN: !GetAtt AppendHtmlFunction.FunctionARN
         # No CustomErrorResponses. Rewriting 403/404 to /index.html would make
         # every unknown path return 200 with the CV, which is what hid this bug
-        # in the first place: /family-planner served the homepage with a 200 and
+        # in the first place: /family-assistant served the homepage with a 200 and
         # a status-only check could not tell. A genuine 404 is more useful than
         # a convincing wrong page, and without it a mistyped URL silently lands
         # on the CV instead of failing.

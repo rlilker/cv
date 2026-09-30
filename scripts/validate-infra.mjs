@@ -252,7 +252,7 @@ if (parsed[tplRel]) {
   check('CloudFront redirects to HTTPS', cacheBehaviour?.ViewerProtocolPolicy === 'redirect-to-https', cacheBehaviour?.ViewerProtocolPolicy);
   check('CloudFront uses OAC', !!cfg?.Origins?.[0]?.OriginAccessControlId);
   // CloudFront does not resolve directory indexes against an S3 origin: "/" and
-  // "/family-planner" reach S3 as keys that do not exist and come back 403. The
+  // "/family-assistant" reach S3 as keys that do not exist and come back 403. The
   // viewer-request function maps extensionless URLs onto the emitted .html
   // file. Without it every page except the explicit .html URL 403s.
   const cfFunction = Object.values(tpl.Resources ?? {}).find(
@@ -282,7 +282,7 @@ if (parsed[tplRel]) {
 
   // A CustomErrorResponses rule that rewrites 403/404 to /index.html makes every
   // unknown path return 200 with the CV. That is what hid the original bug:
-  // /family-planner served the homepage with a 200, so a status-only live
+  // /family-assistant served the homepage with a 200, so a status-only live
   // check passed. It also means a mistyped URL silently lands on the CV, and a
   // cached 403 keeps re-serving that rewrite after a deploy. Refuse it.
   const errorRules = cfg?.CustomErrorResponses ?? [];

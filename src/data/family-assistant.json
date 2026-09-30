@@ -1,6 +1,6 @@
 {
-  "slug": "family-planner",
-  "name": "Family Planner",
+  "slug": "family-assistant",
+  "name": "Family Assistant",
   "tagline": "Family Gmail to shared calendar, on a Raspberry Pi",
   "summary": "A private, self-hosted pipeline that reads a family's Gmail once a day, works out which emails contain real appointments, and puts them on a shared Google Calendar — with a push notification when something needs attention. The only machine it ever runs on is a Raspberry Pi in the house, and the AI that reads the emails never leaves it.",
   "status": "In use",
@@ -72,7 +72,7 @@
       }
     ],
     "solution": [
-      "Everything — source, virtualenv, binaries, model weights, tokens, logs and database — lives under a single directory at /userdata/system/family-planner/. Deleting that one folder returns the console to exactly its original state.",
+      "Everything — source, virtualenv, binaries, model weights, tokens, logs and database — lives under a single directory at /userdata/system/family-assistant/. Deleting that one folder returns the console to exactly its original state.",
       "Ollama is not a resident service. It is a standalone ARM64 binary that the daily job starts, uses for the extraction pass, and kills again. Between runs it holds no memory at all.",
       "Nothing outside that directory is touched: not the ROMs, the BIOS, the saves, batocera.conf, or any emulator configuration.",
       "The Google OAuth token is the one genuinely sharp edge — it expires after seven days while an app sits in the testing console, so a service meant to run unattended needs the app moved to production."

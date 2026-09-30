@@ -3,7 +3,7 @@
  *
  * Astro will happily "successfully" build a page that is missing half its
  * content — a malformed data file just renders an empty section. So this
- * asserts the rendered HTML actually contains the CV data, the Family Planner
+ * asserts the rendered HTML actually contains the CV data, the Family Assistant
  * page, and both legal documents.
  *
  * Run with:  node scripts/verify-build.mjs
@@ -14,7 +14,7 @@ import { dirname, resolve, join, relative } from 'node:path';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const data = JSON.parse(readFileSync(resolve(root, 'src/data/cv.json'), 'utf8'));
-const app = JSON.parse(readFileSync(resolve(root, 'src/data/family-planner.json'), 'utf8'));
+const app = JSON.parse(readFileSync(resolve(root, 'src/data/family-assistant.json'), 'utf8'));
 
 let failures = 0;
 
@@ -60,14 +60,14 @@ const read = (rel) => {
 
 // build.format is 'file', so each page is emitted as <route>.html rather than
 // <route>/index.html. See the note in astro.config.mjs: with 'directory', a
-// request for /family-planner/ resolves to the S3 key "family-planner/", which
+// request for /family-assistant/ resolves to the S3 key "family-assistant/", which
 // is a prefix rather than an object, and CloudFront serves the CV homepage
 // instead of the page.
 const PAGES = {
   home: 'dist/index.html',
-  app: 'dist/family-planner.html',
-  privacy: 'dist/family-planner/privacy.html',
-  terms: 'dist/family-planner/terms.html',
+  app: 'dist/family-assistant.html',
+  privacy: 'dist/family-assistant/privacy.html',
+  terms: 'dist/family-assistant/terms.html',
 };
 
 const html = {};
@@ -101,7 +101,7 @@ check('location', html.home.includes(data.profile.location));
 check('intro paragraphs', data.profile.intro.every((p) => html.home.includes(escapeHtml(p.slice(0, 60)))));
 
 // Contact details are deliberately absent from the CV. LinkedIn and GitHub are
-// the routes. The Family Planner legal pages still name an email address
+// the routes. The Family Assistant legal pages still name an email address
 // because GDPR and DSA both require a published point of contact, so this
 // section checks the CV page only.
 section('No direct contact details on the CV');
@@ -150,7 +150,7 @@ const pills = (html.home.match(/class="interest-pill"/g) || []).length;
 check('every interest rendered', pills === data.interests.length, `${pills}/${data.interests.length}`);
 
 // The stat strip was removed from the hero, so there is no CV-level "highlights"
-// array any more. The Family Planner page keeps its own heroStats.
+// array any more. The Family Assistant page keeps its own heroStats.
 check('no stat strip on the CV', !html.home.includes('class="stat"'), 'the hero stat tiles were removed');
 check(
   'no highlights array in the CV data',
@@ -159,10 +159,10 @@ check(
 );
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  Family Planner page
+//  Family Assistant page
 // ═══════════════════════════════════════════════════════════════════════════
 
-section(`Family Planner page (${(html.app.length / 1024).toFixed(1)} KB)`);
+section(`Family Assistant page (${(html.app.length / 1024).toFixed(1)} KB)`);
 check('name', html.app.includes(app.name));
 check('tagline', html.app.includes(escapeHtml(app.tagline)));
 check('summary', html.app.includes(escapeHtml(app.summary.slice(0, 70))));
@@ -219,7 +219,7 @@ for (const [key, source, title] of [
 
   check('markdown became real HTML', (html[key].match(/<p[ >]/g) || []).length > 20);
   check('document title not duplicated in the body', !page.startsWith(title + ' This'));
-  check('links to the app page', html[key].includes('/family-planner"'));
+  check('links to the app page', html[key].includes('/family-assistant"'));
   check('links back to the CV', html[key].includes('href="/"'));
 }
 
@@ -228,7 +228,7 @@ for (const [key, source, title] of [
 // ═══════════════════════════════════════════════════════════════════════════
 //
 // Every internal link must match the emitted filenames, and must not carry a
-// trailing slash. build.format 'directory' is what made /family-planner/ serve
+// trailing slash. build.format 'directory' is what made /family-assistant/ serve
 // the CV instead of the page, and nothing in the build output would reveal it
 // on its own - only a request against the deployed site shows it. These checks
 // keep the source and the filenames in agreement so it cannot come back.
@@ -237,8 +237,8 @@ const configText = readFileSync(resolve(root, 'astro.config.mjs'), 'utf8');
 check("astro build.format is 'file'", /format:\s*'file'/.test(configText), "'directory' breaks directory-style routes on S3");
 check("astro trailingSlash is 'never'", /trailingSlash:\s*'never'/.test(configText));
 
-const flatHtml = all.filter((h) => h.includes('href="/family-planner/"'));
-check('no link uses a trailing-slash project URL', flatHtml.length === 0, 'a /family-planner/ link resolves to the CV');
+const flatHtml = all.filter((h) => h.includes('href="/family-assistant/"'));
+check('no link uses a trailing-slash project URL', flatHtml.length === 0, 'a /family-assistant/ link resolves to the CV');
 
 for (const [key] of Object.entries(PAGES)) {
   if (key === 'home') continue;
@@ -274,11 +274,11 @@ for (const href of internalHrefs) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 section('Cross-page navigation');
-check('home links to the app', html.home.includes('/family-planner"'));
+check('home links to the app', html.home.includes('/family-assistant"'));
 check('app links to the CV', html.app.includes('href="/"'));
-check('legal pages link to each other', html.privacy.includes('/family-planner/terms"') && html.terms.includes('/family-planner/privacy"'));
+check('legal pages link to each other', html.privacy.includes('/family-assistant/terms"') && html.terms.includes('/family-assistant/privacy"'));
 check('nav present on every page', all.every((h) => h.includes('class="nav-pill nav-links"')));
-check('app reachable from the nav on every page', all.every((h) => h.includes('href="/family-planner"')));
+check('app reachable from the nav on every page', all.every((h) => h.includes('href="/family-assistant"')));
 check('CV sections reachable from the nav on every page', all.every((h) => h.includes('href="/#experience"')));
 check('nav behavior loads on every page', all.every((h) => h.includes('IntersectionObserver') && h.includes('.nav-toggle')));
 

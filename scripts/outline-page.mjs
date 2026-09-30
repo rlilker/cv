@@ -28,9 +28,9 @@ const visibleText = (html) =>
 const pages = [
   // Paths match build.format: 'file', so pages are emitted as <route>.html.
   ['Home (CV)', 'dist/index.html'],
-  ['Family Planner', 'dist/family-planner.html'],
-  ['Privacy policy', 'dist/family-planner/privacy.html'],
-  ['Terms & conditions', 'dist/family-planner/terms.html'],
+  ['Family Assistant', 'dist/family-assistant.html'],
+  ['Privacy policy', 'dist/family-assistant/privacy.html'],
+  ['Terms & conditions', 'dist/family-assistant/terms.html'],
 ];
 
 const only = process.argv[2];

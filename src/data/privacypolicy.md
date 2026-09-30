@@ -1,6 +1,6 @@
 **Privacy Policy**
 
-This privacy policy applies to the Family Planner app for mobile devices and Windows devices, together with any related services operated by Ryan Lilker (collectively, the "Application"). Ryan Lilker is hereby referred to as the "Service Provider".
+This privacy policy applies to the Family Assistant app for mobile devices and Windows devices, together with any related services operated by Ryan Lilker (collectively, the "Application"). Ryan Lilker is hereby referred to as the "Service Provider".
 
 **Information Collection and Use**
 
