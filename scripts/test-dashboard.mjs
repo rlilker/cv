@@ -276,6 +276,55 @@ await check('validateConfig flags a list that is not a list', () => {
   }).length > 0);
 });
 
+// --- The deploy workflow must feed the build ---------------------------------
+// import.meta.env is resolved at BUILD time, not at runtime. If the workflow
+// stops passing these, the dashboard still builds and deploys successfully and
+// simply ships unconfigured - the failure is silent, and only visible to whoever
+// tries to sign in. These assert the wiring exists.
+
+const workflowPath = resolve(root, '.github/workflows/deploy.yml');
+let workflow = '';
+try {
+  workflow = readFileSync(workflowPath, 'utf8');
+} catch {
+  console.error(`\nFATAL: deploy workflow not found at ${workflowPath}\n`);
+  process.exit(1);
+}
+
+const PUBLIC_FIREBASE_VARS = [
+  'PUBLIC_FIREBASE_API_KEY',
+  'PUBLIC_FIREBASE_AUTH_DOMAIN',
+  'PUBLIC_FIREBASE_PROJECT_ID',
+  'PUBLIC_FIREBASE_APP_ID',
+  'PUBLIC_FIREBASE_MESSAGING_SENDER_ID',
+  'PUBLIC_FIREBASE_VAPID_KEY',
+];
+
+for (const name of PUBLIC_FIREBASE_VARS) {
+  await check(`deploy workflow passes ${name} to the build`, () => {
+    ok(workflow.includes(`${name}: \${{ vars.${name} }}`),
+       `the Build step must export ${name}, or the dashboard ships with no `
+       + `Firebase config and sign-in silently fails for the whole family`);
+  });
+}
+
+await check('all six Firebase vars sit in the Build step env block', () => {
+  const after = workflow.split('- name: Build')[1] ?? '';
+  const buildStep = after.split('- name:')[0] ?? '';
+  ok(buildStep.includes('env:'), 'the Build step needs an env: block');
+  for (const name of PUBLIC_FIREBASE_VARS) {
+    ok(buildStep.includes(name), `${name} is not in the Build step`);
+  }
+});
+
+await check('firebase config is a repo variable, not a secret', () => {
+  // These values are public by design. Storing them as secrets would imply they
+  // need protecting, and they do not: access is the security rules' job.
+  ok(!/PUBLIC_FIREBASE_\w+:\s*\$\{\{\s*secrets\./.test(workflow),
+     'Firebase web config should use vars.* not secrets.* - it is public by '
+     + 'design, and calling it a secret misleads the next person');
+});
+
 // --- Static assertions on the dashboard source -----------------------------
 // These catch what unit tests cannot: the page shipping without the SDK wiring
 // or config plumbing the rest of this file assumes exists.

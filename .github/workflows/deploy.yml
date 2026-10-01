@@ -13,6 +13,16 @@
 #
 #  The AWS_REGION is intentionally the stack's own region; the S3 bucket name
 #  is resolved from the bucket itself so the workflow needs no extra secret.
+#
+#  Optional repository variables (Settings -> Secrets and variables -> Actions ->
+#  Variables). Without them the Family Assistant dashboard builds and deploys but
+#  shows a "not configured yet" notice, and sign-in and push are unavailable:
+#    PUBLIC_FIREBASE_API_KEY, PUBLIC_FIREBASE_AUTH_DOMAIN,
+#    PUBLIC_FIREBASE_PROJECT_ID, PUBLIC_FIREBASE_APP_ID,
+#    PUBLIC_FIREBASE_MESSAGING_SENDER_ID, PUBLIC_FIREBASE_VAPID_KEY
+#
+#  These are public values by design (see the Build step) and are documented in
+#  docs/DEPLOY_FIRESTORE.md §4 in the service repository.
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: Deploy
@@ -74,6 +84,25 @@ jobs:
 
       - name: Build
         run: npm run build
+        env:
+          # Firebase web config, injected at build time so it can be read via
+          # import.meta.env. These are repository *variables* rather than secrets
+          # on purpose: the Firebase web config and the VAPID key are public by
+          # design and end up in browser JavaScript, where anyone can read them.
+          # Access is controlled entirely by Firestore security rules, so there is
+          # nothing here worth hiding - and calling it a secret would suggest
+          # otherwise and discourage the next person from looking.
+          #
+          # Unset variables expand to an empty string, so the build still succeeds
+          # and the dashboard renders its "not configured" notice. That is
+          # deliberate: a missing Firebase config must not block deploys of the
+          # rest of the site.
+          PUBLIC_FIREBASE_API_KEY: ${{ vars.PUBLIC_FIREBASE_API_KEY }}
+          PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ vars.PUBLIC_FIREBASE_AUTH_DOMAIN }}
+          PUBLIC_FIREBASE_PROJECT_ID: ${{ vars.PUBLIC_FIREBASE_PROJECT_ID }}
+          PUBLIC_FIREBASE_APP_ID: ${{ vars.PUBLIC_FIREBASE_APP_ID }}
+          PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+          PUBLIC_FIREBASE_VAPID_KEY: ${{ vars.PUBLIC_FIREBASE_VAPID_KEY }}
 
       # Astro can report a successful build that is missing content; this
       # fails the deploy before anything is published.
