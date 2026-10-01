@@ -365,6 +365,15 @@ await check('a denied save is reported, not swallowed', () => {
 });
 
 
+await check('dashboard explains a missing VAPID key rather than failing obscurely', () => {
+  // getToken() throws an opaque error when vapidKey is empty. A user who has
+  // completed sign-in and pressed the button deserves to be told the push setup
+  // is unfinished, not handed a raw SDK error.
+  ok(/vapid/i.test(page), 'the page must reference the VAPID key by name');
+  ok(/not.*configured|not.*set|missing/i.test(page), (
+    'there should be a human-readable message for the unset-VAPID case'));
+});
+
 await check('dashboard loads the Google Identity Services SDK', () => {
   ok(page.includes('accounts.google.com/gsi/client'),
      'sign-in uses GIS, per dashboard-plan Task 3');
