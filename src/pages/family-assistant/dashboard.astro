@@ -176,6 +176,11 @@ const description =
         <p class="error" id="config-errors" role="alert" hidden></p>
         <p class="ok" id="config-saved" role="status" hidden>Saved.</p>
 
+        <p class="notice readonly" id="config-readonly" role="status" hidden>
+          These settings are read-only for your account. A parent account can
+          change them.
+        </p>
+
         <button type="button" class="btn primary" id="save-config">
           Save settings
         </button>
@@ -233,6 +238,13 @@ const description =
     padding: 0.85rem 1rem;
     border-radius: 6px;
     margin: 1rem 0;
+  }
+
+  /* Softer than .notice: this is expected state, not a problem to solve. */
+  .notice.readonly {
+    border-left-color: #5b6472;
+    background: #f6f7f9;
+    color: var(--muted, #5b6472);
   }
 
   .summary {
@@ -312,6 +324,23 @@ const description =
   const RUNS_COLLECTION = 'runs';
   const DEVICES_COLLECTION = 'devices';
 
+  /**
+   * Addresses allowed to change the extraction settings.
+   *
+   * This is a *display* concern only. The authoritative check is the
+   * `allow write: if isAdmin()` rule in firestore.rules, which cannot be
+   * circumvented from the browser - this list only decides whether to show a
+   * Save button or a read-only form.
+   *
+   * The two copies can therefore drift, which is why saveConfig() also handles a
+   * permission-denied response rather than assuming this list is right. Keep in
+   * step with `isAdmin()` in firebase/firestore.rules.
+   */
+  const ADMIN_EMAILS = new Set([
+    'ryan.lilker@gmail.com',
+    'alison.lilker@gmail.com',
+  ]);
+
   // Firebase ESM URLs, imported on demand so an unconfigured dashboard ships
   // almost no JavaScript at all.
   const FB = 'https://www.gstatic.com/firebasejs/11.0.2';
@@ -324,6 +353,9 @@ const description =
   let db = null;
   let messaging = null;
   let firestoreNs = null;
+
+  /** True when the signed-in account may change the extraction settings. */
+  let isAdmin = false;
 
   const $ = (id) => document.getElementById(id);
 
@@ -409,6 +441,8 @@ const description =
     $('signin-slot').hidden = true;
     $('signed-in').hidden = false;
     $('user-email').textContent = user.email ?? '(no email)';
+    isAdmin = ADMIN_EMAILS.has((user.email ?? '').toLowerCase());
+    applyAdminState();
     setFormEnabled(true);
     loadConfig();
     loadRuns();
@@ -419,11 +453,34 @@ const description =
   function onSignedOut() {
     $('signin-slot').hidden = false;
     $('signed-in').hidden = true;
+    isAdmin = false;
+    applyAdminState();
     $('runs').innerHTML = '';
     $('summary').hidden = true;
     $('history-empty').hidden = true;
     setFormEnabled(false);
     renderGoogleButton();
+  }
+
+  /**
+   * Settings are admin-only. Everyone else still sees them, because the push
+   * preview and the saved-prompt text are useful to read, but the controls are
+   * inert and the reason is stated rather than left for them to guess at.
+   */
+  function applyAdminState() {
+    const note = $('config-readonly');
+    const save = $('save-config');
+    if (isAdmin) {
+      note.hidden = true;
+      save.hidden = false;
+    } else {
+      note.hidden = false;
+      save.hidden = true;
+      for (const id of ['llm-prompt', 'whitelist', 'blacklist', 'push-template']) {
+        const el = $(id);
+        if (el) el.readOnly = true;
+      }
+    }
   }
 
   function setFormEnabled(enabled) {
@@ -565,7 +622,16 @@ const description =
       $('config-updated').textContent =
         `Last changed ${new Date().toLocaleString()}`;
     } catch (e) {
-      say(errorsNode, `Could not save: ${e.message}`, 'error');
+      // The security rules are authoritative, not ADMIN_EMAILS. If that list has
+      // drifted from firestore.rules, Firestore says no - and saying so plainly
+      // beats a save button that appears to do nothing.
+      if (/permission|denied/i.test(e?.message ?? '')) {
+        say(errorsNode,
+          'Your account is not allowed to change these settings. Firestore '
+          + 'rejected the write, so nothing was saved.', 'error');
+      } else {
+        say(errorsNode, `Could not save: ${e.message}`, 'error');
+      }
       errorsNode.hidden = false;
     } finally {
       button.disabled = false;

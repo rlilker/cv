@@ -298,6 +298,24 @@ try {
   process.exit(1);
 }
 
+await check('dashboard gates the settings form on admin status', () => {
+  ok(page.includes('ADMIN_EMAILS'), 'the page must know who is an admin');
+  ok(page.includes('isAdmin'), 'the form must switch on admin status');
+});
+
+await check('non-admins are told why the form is read-only', () => {
+  // Without a reason, a disabled form just looks like a broken page.
+  ok(/read-only|administrator|admin/i.test(page));
+});
+
+await check('a denied save is reported, not swallowed', () => {
+  // The rules are authoritative. If this list ever drifts from the rules file,
+  // a non-admin clicking save must see a clear message, not a silent no-op.
+  ok(/permission|denied/i.test(page), (
+    'a permission-denied response from Firestore must be surfaced to the user'));
+});
+
+
 await check('dashboard loads the Google Identity Services SDK', () => {
   ok(page.includes('accounts.google.com/gsi/client'),
      'sign-in uses GIS, per dashboard-plan Task 3');
