@@ -374,6 +374,23 @@ await check('dashboard explains a missing VAPID key rather than failing obscurel
     'there should be a human-readable message for the unset-VAPID case'));
 });
 
+await check('deploy workflow passes the OAuth client id to the build', () => {
+  ok(workflow.includes('PUBLIC_GOOGLE_CLIENT_ID: ${{ vars.PUBLIC_GOOGLE_CLIENT_ID }}'),
+     'the Build step must export PUBLIC_GOOGLE_CLIENT_ID. Without it the '
+     + 'dashboard loads no Google Identity Services script and renders no '
+     + 'sign-in button, with nothing on screen to say why.');
+  ok(workflow.includes('PUBLIC_GOOGLE_CLIENT_ID: ${{ vars.PUBLIC_GOOGLE_CLIENT_ID }}')
+     && /- name: Build[\s\S]*?env:[\s\S]*PUBLIC_GOOGLE_CLIENT_ID/.test(workflow),
+     'PUBLIC_GOOGLE_CLIENT_ID must sit in the Build step env block');
+});
+
+await check('dashboard says so when the OAuth client id is missing', () => {
+  // A page that silently renders an empty sign-in box reads as a broken site.
+  ok(page.includes('PUBLIC_GOOGLE_CLIENT_ID'));
+  ok(/sign[- ]?in.*not|not.*configured|no sign/i.test(page), (
+    'there should be a human-readable message when sign-in cannot be set up'));
+});
+
 await check('dashboard loads the Google Identity Services SDK', () => {
   ok(page.includes('accounts.google.com/gsi/client'),
      'sign-in uses GIS, per dashboard-plan Task 3');

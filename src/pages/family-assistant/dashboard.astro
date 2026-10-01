@@ -34,10 +34,14 @@ const fb = {
 };
 
 // The OAuth web client id is the one thing the Identity Services SDK needs.
-// It is deliberately NOT sent to Firestore or used for signing anything.
+// It is deliberately NOT sent to Firestore or used for signing anything. It is
+// a public identifier: this flow uses no client secret, and could not use one
+// from a browser even if we wanted to.
 const googleClientId = import.meta.env.PUBLIC_GOOGLE_CLIENT_ID ?? '';
 
 const configured = Boolean(fb.apiKey && fb.projectId);
+const signInConfigured = Boolean(googleClientId);
+
 const title = 'Dashboard — Family Assistant';
 const description =
   'Private control panel for the Family Assistant: run history, extraction '
@@ -88,6 +92,19 @@ const description =
         <h2 id="auth-heading">Sign in</h2>
         <div id="g_id_onload" data-client-id={googleClientId} hidden></div>
         <div id="signin-slot"></div>
+        {/*
+          A missing client id means loadGoogleIdentity() returns before it
+          injects the GIS script, so the slot above stays empty and the page
+          looks broken with nothing to indicate why. Say it plainly instead.
+        */}
+        {!signInConfigured && (
+          <p class="notice" role="status">
+            <strong>Sign-in is not set up on this deployment.</strong> The
+            OAuth web client id is not configured, so no sign-in button can be
+            shown. See <code>docs/DEPLOY_FIRESTORE.md</code> in the service
+            repository.
+          </p>
+        )}
         <div id="signed-in" hidden>
           <p>Signed in as <strong id="user-email"></strong></p>
           <button type="button" class="btn ghost" id="sign-out">Sign out</button>

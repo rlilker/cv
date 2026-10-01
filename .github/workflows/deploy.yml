@@ -103,6 +103,14 @@ jobs:
           PUBLIC_FIREBASE_APP_ID: ${{ vars.PUBLIC_FIREBASE_APP_ID }}
           PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
           PUBLIC_FIREBASE_VAPID_KEY: ${{ vars.PUBLIC_FIREBASE_VAPID_KEY }}
+          # OAuth WEB client id, for the Google Identity Services sign-in button.
+          #
+          # This is a *different* client from the desktop one the Pi uses for
+          # Gmail and Calendar. It is a public identifier - no client secret is
+          # involved, and none could be used from a browser even if we wanted to.
+          # Without it the dashboard loads no GIS script and renders no sign-in
+          # button at all, which is why it is wired here rather than assumed.
+          PUBLIC_GOOGLE_CLIENT_ID: ${{ vars.PUBLIC_GOOGLE_CLIENT_ID }}
 
       # Astro can report a successful build that is missing content; this
       # fails the deploy before anything is published.
