@@ -42,7 +42,7 @@
     {
       "step": "04",
       "title": "Publish",
-      "body": "Accepted events are created in the shared Google Calendar via the calendar.events scope, and a push notification is sent to the family's phones through ntfy."
+      "body": "Accepted events are created in the shared Google Calendar via the calendar.events scope, and a push notification goes out to the family's phones through Firebase Cloud Messaging."
     }
   ],
   "privacy": {
@@ -86,7 +86,8 @@
     { "label": "Google APIs", "detail": "Gmail readonly + Calendar events" },
     { "label": "Pydantic", "detail": "strict validation of model output" },
     { "label": "SQLite", "detail": "deduplication cache of seen messages" },
-    { "label": "ntfy", "detail": "push notifications to the family's phones" },
+    { "label": "Firebase", "detail": "Firestore dashboard + FCM push" },
+    { "label": "Firestore", "detail": "run history, behind security rules" },
     { "label": "pytest", "detail": "offline suite plus live extraction tests" }
   ],
   "repoUrl": "https://github.com/rlilker/family-planner"

@@ -14,7 +14,8 @@
     "selftest:infra": "node scripts/selftest-infra.mjs",
     "check:shell": "node scripts/check-workflow-shell.mjs",
     "check": "astro check",
-    "test": "npm run build && npm run verify && npm run validate:infra && npm run selftest:infra && npm run check:shell",
+    "test:dashboard": "node scripts/test-dashboard.mjs",
+    "test": "npm run build && npm run verify && npm run validate:infra && npm run selftest:infra && npm run check:shell && npm run test:dashboard",
     "preview": "astro preview"
   },
   "dependencies": {

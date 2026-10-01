@@ -1,0 +1,703 @@
+---
+/**
+ * Family Assistant dashboard (Tasks 3 and 4 of dashboard-plan.md).
+ *
+ * A static Astro page with no server component. Everything it needs comes from
+ * two places at runtime:
+ *
+ *   Google Identity Services  -> an ID token, exchanged for a Firebase session
+ *   Firestore                 -> config/app_settings and runs/{run_id}
+ *
+ * The Pi service writes the runs and reads the config; this page reads the runs
+ * and writes the config. Neither side calls the other's HTTP API.
+ *
+ * Security posture: this is a static file on S3. Anyone can fetch it, including
+ * the OAuth client id, so *nothing* here is a secret and *nothing* here is
+ * trusted. Access control lives entirely in firestore.rules, which grants on an
+ * email allowlist. If you find yourself adding a secret to this file, the design
+ * is wrong.
+ */
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Nav from '../../components/Nav.astro';
+import Footer from '../../components/Footer.astro';
+import app from '../../data/family-assistant.json';
+
+// Public Firebase config, injected at build time. Absent in local dev until the
+// values from docs/DEPLOY_FIRESTORE.md are exported.
+const fb = {
+  apiKey: import.meta.env.PUBLIC_FIREBASE_API_KEY ?? '',
+  authDomain: import.meta.env.PUBLIC_FIREBASE_AUTH_DOMAIN ?? '',
+  projectId: import.meta.env.PUBLIC_FIREBASE_PROJECT_ID ?? '',
+  appId: import.meta.env.PUBLIC_FIREBASE_APP_ID ?? '',
+  messagingSenderId: import.meta.env.PUBLIC_FIREBASE_MESSAGING_SENDER_ID ?? '',
+  vapidKey: import.meta.env.PUBLIC_FIREBASE_VAPID_KEY ?? '',
+};
+
+// The OAuth web client id is the one thing the Identity Services SDK needs.
+// It is deliberately NOT sent to Firestore or used for signing anything.
+const googleClientId = import.meta.env.PUBLIC_GOOGLE_CLIENT_ID ?? '';
+
+const configured = Boolean(fb.apiKey && fb.projectId);
+const title = 'Dashboard — Family Assistant';
+const description =
+  'Private control panel for the Family Assistant: run history, extraction '
+  + 'settings, and notification setup.';
+---
+
+<BaseLayout title={title} description={description}>
+  <div id="top"></div>
+
+  <Nav current="projects" />
+
+  <main class="page" id="main">
+    <article class="dash">
+      <a class="back-link" href="/family-assistant">
+        <span aria-hidden="true">&larr;</span> Back to {app.name}
+      </a>
+
+      <header class="dash-head">
+        <h1>Dashboard</h1>
+        <p class="dash-sub">
+          Run history and settings for the {app.name} service running on the
+          Raspberry Pi.
+        </p>
+      </header>
+
+      {/*
+        The Firebase web config, injected at build time from PUBLIC_* env vars.
+        These values identify the project; they do not authorise anything. Access
+        is granted by firestore.rules based on an email allowlist, so this blob
+        being public is expected and harmless.
+      */}
+      <script
+        id="fb-config"
+        type="application/json"
+        set:html={JSON.stringify(fb)}
+      />
+
+      {!configured && (
+        <div class="notice" role="status">
+          <strong>Not configured yet.</strong> The Firebase values have not been
+          exported at build time, so sign-in and push are unavailable. See
+          <code>docs/DEPLOY_FIRESTORE.md</code> in the service repository.
+        </div>
+      )}
+
+      <!-- Sign-in ------------------------------------------------------- -->
+      <section class="card" id="auth" aria-labelledby="auth-heading">
+        <h2 id="auth-heading">Sign in</h2>
+        <div id="g_id_onload" data-client-id={googleClientId} hidden></div>
+        <div id="signin-slot"></div>
+        <div id="signed-in" hidden>
+          <p>Signed in as <strong id="user-email"></strong></p>
+          <button type="button" class="btn ghost" id="sign-out">Sign out</button>
+        </div>
+      </section>
+
+      <!-- Run history --------------------------------------------------- -->
+      <section class="card" id="history" aria-labelledby="history-heading">
+        <div class="card-head">
+          <h2 id="history-heading">Recent runs</h2>
+          <button type="button" class="btn ghost" id="refresh">Refresh</button>
+        </div>
+
+        <p id="history-empty" class="muted" hidden>
+          No runs recorded yet. The Pi writes one after each daily sync.
+        </p>
+
+        <dl class="summary" id="summary" hidden>
+          <div><dt>Last 15</dt><dd id="s-total">0</dd></div>
+          <div><dt>Success</dt><dd id="s-success">0</dd></div>
+          <div><dt>Warnings</dt><dd id="s-warn">0</dd></div>
+          <div><dt>Errors</dt><dd id="s-error">0</dd></div>
+          <div><dt>Emails read</dt><dd id="s-scanned">0</dd></div>
+          <div><dt>Events added</dt><dd id="s-created">0</dd></div>
+        </dl>
+
+        <ol class="runs" id="runs"></ol>
+      </section>
+
+      <!-- Config editor -------------------------------------------------- -->
+      <section class="card" id="config" aria-labelledby="config-heading">
+        <div class="card-head">
+          <h2 id="config-heading">Extraction settings</h2>
+          <span class="stamp" id="config-updated"></span>
+        </div>
+
+        <p class="muted">
+          The Pi reads this before each run. Changes take effect at the next
+          05:00 sync.
+        </p>
+
+        <div class="field">
+          <label for="llm-prompt">Extraction prompt</label>
+          <textarea id="llm-prompt" rows="10" spellcheck="false"></textarea>
+          <p class="hint">
+            Variables available: <code>{'{date}'}</code>, <code>{'{email}'}</code>.
+          </p>
+        </div>
+
+        <div class="field">
+          <label for="whitelist">Allowed sender domains</label>
+          <input
+            id="whitelist"
+            type="text"
+            placeholder="school.org, clubs.co.uk"
+            autocomplete="off"
+          />
+          <p class="hint">
+            Comma-separated. Leave empty to consider every sender.
+          </p>
+        </div>
+
+        <div class="field">
+          <label for="blacklist">Ignored keywords</label>
+          <input
+            id="blacklist"
+            type="text"
+            placeholder="unsubscribe, marketing, newsletter"
+            autocomplete="off"
+          />
+          <p class="hint">
+            Matching emails are dropped before the model ever sees them.
+          </p>
+        </div>
+
+        <div class="field">
+          <label for="push-template">Notification template</label>
+          <input id="push-template" type="text" autocomplete="off" />
+          <p class="hint">
+            Available: <code>{'{summary}'}</code>, <code>{'{date}'}</code>,
+            <code>{'{time}'}</code>.
+          </p>
+          <p class="preview" id="push-preview"></p>
+        </div>
+
+        <p class="error" id="config-errors" role="alert" hidden></p>
+        <p class="ok" id="config-saved" role="status" hidden>Saved.</p>
+
+        <button type="button" class="btn primary" id="save-config">
+          Save settings
+        </button>
+      </section>
+
+      <!-- Push ----------------------------------------------------------- -->
+      <section class="card" id="push" aria-labelledby="push-heading">
+        <h2 id="push-heading">Notifications on this device</h2>
+        <p class="muted">
+          Subscribe this phone or computer to receive a push when an event is
+          added to the family calendar.
+        </p>
+        <p id="push-state" class="muted"></p>
+        <button type="button" class="btn primary" id="enable-push">
+          Enable notifications
+        </button>
+        <p class="hint">
+          On iPhone, add this site to the Home Screen first — iOS only delivers
+          Web Push to a Home Screen app.
+        </p>
+      </section>
+
+      <Footer />
+    </article>
+  </main>
+</BaseLayout>
+<style>
+  .dash { max-width: 52rem; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+  .dash-head h1 { margin: 0.5rem 0 0.25rem; font-size: 2rem; }
+  .dash-sub { color: var(--muted, #5b6472); margin-top: 0; }
+
+  .card {
+    border: 1px solid var(--line, #dfe3e8);
+    border-radius: 12px;
+    padding: 1.25rem;
+    margin: 1.25rem 0;
+    background: var(--surface, #fff);
+  }
+  .card h2 { margin-top: 0; font-size: 1.1rem; }
+  .card-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 1rem; flex-wrap: wrap;
+  }
+  .card-head h2 { margin-bottom: 0.25rem; }
+  .stamp { font-size: 0.8rem; color: var(--muted, #5b6472); }
+
+  .muted { color: var(--muted, #5b6472); }
+  .hint { font-size: 0.85rem; color: var(--muted, #5b6472); margin: 0.35rem 0 0; }
+  .error { color: #b3261e; font-weight: 600; }
+  .ok { color: #1b5e20; font-weight: 600; }
+
+  .notice {
+    border-left: 4px solid #b26a00;
+    background: #fff6e5;
+    padding: 0.85rem 1rem;
+    border-radius: 6px;
+    margin: 1rem 0;
+  }
+
+  .summary {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+    gap: 0.75rem; margin: 1rem 0;
+  }
+  .summary div {
+    border: 1px solid var(--line, #dfe3e8);
+    border-radius: 8px; padding: 0.6rem 0.75rem;
+  }
+  .summary dt { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted, #5b6472); }
+  .summary dd { margin: 0.2rem 0 0; font-size: 1.4rem; font-weight: 700; }
+
+  .runs { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.6rem; }
+  .run {
+    border: 1px solid var(--line, #dfe3e8);
+    border-radius: 8px; padding: 0.75rem 0.9rem;
+  }
+  .run-top { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+  .run-time { font-weight: 600; }
+  .badge {
+    font-size: 0.72rem; font-weight: 700; letter-spacing: 0.05em;
+    padding: 0.15rem 0.5rem; border-radius: 999px; color: #fff;
+  }
+  .badge.SUCCESS { background: #1b5e20; }
+  .badge.WARN { background: #b26a00; }
+  .badge.ERROR { background: #b3261e; }
+  .run-metrics { font-size: 0.85rem; color: var(--muted, #5b6472); margin: 0.4rem 0 0; }
+  .run details { margin-top: 0.5rem; }
+  .run summary { cursor: pointer; font-size: 0.85rem; }
+  .run pre {
+    white-space: pre-wrap; word-break: break-word;
+    background: #f6f7f9; padding: 0.6rem; border-radius: 6px; font-size: 0.8rem;
+  }
+
+  .field { margin: 1rem 0; }
+  .field label { display: block; font-weight: 600; margin-bottom: 0.3rem; }
+  .field input, .field textarea {
+    width: 100%; padding: 0.55rem 0.7rem;
+    border: 1px solid var(--line, #dfe3e8); border-radius: 6px;
+    font: inherit; background: #fff; color: inherit;
+  }
+  .field textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85rem; }
+  .preview {
+    margin: 0.5rem 0 0; font-size: 0.85rem;
+    background: #f6f7f9; padding: 0.5rem 0.7rem; border-radius: 6px;
+  }
+
+  .btn {
+    font: inherit; padding: 0.55rem 1rem; border-radius: 8px;
+    border: 1px solid var(--line, #dfe3e8); cursor: pointer;
+  }
+  .btn.primary { background: #1a1d21; color: #fff; border-color: #1a1d21; }
+  .btn.ghost { background: transparent; color: inherit; }
+  .btn[disabled] { opacity: 0.55; cursor: not-allowed; }
+</style>
+<script>
+  /**
+   * Dashboard client.
+   *
+   * Loaded as a module, and only does anything once Firebase is configured at
+   * build time. Every Firestore read and write is authorised by the security
+   * rules, never by anything checked here: this code runs on a public static
+   * page and cannot be trusted to protect anything.
+   */
+  import {
+    summariseRuns, formatRunId, sortRunsNewestFirst,
+    parseTagList, formatTagList, renderPushTemplate, escapeHtml,
+    validateConfig, deviceDocumentId, RUNS_QUERY_LIMIT,
+  } from '../../lib/dashboard.js';
+
+  const FIREBASE_CONFIG = JSON.parse($('#fb-config').textContent);
+  const GOOGLE_CLIENT_ID = $('#g_id_onload')?.dataset.clientId ?? '';
+  const VAPID_KEY = FIREBASE_CONFIG.vapidKey ?? '';
+
+  const CONFIG_DOC = 'config/app_settings';
+  const RUNS_COLLECTION = 'runs';
+  const DEVICES_COLLECTION = 'devices';
+
+  // Firebase ESM URLs, imported on demand so an unconfigured dashboard ships
+  // almost no JavaScript at all.
+  const FB = 'https://www.gstatic.com/firebasejs/11.0.2';
+  const firebaseApp = () => import(`${FB}/firebase-app.js`);
+  const firebaseAuth = () => import(`${FB}/firebase-auth.js`);
+  const firestore = () => import(`${FB}/firebase-firestore.js`);
+  const messagingSdk = () => import(`${FB}/firebase-messaging.js`);
+
+  let auth = null;
+  let db = null;
+  let messaging = null;
+  let firestoreNs = null;
+
+  const $ = (id) => document.getElementById(id);
+
+  /** Write a status line, choosing the tone class. */
+  function say(node, message, tone = 'muted') {
+    if (!node) return;
+    node.textContent = message;
+    node.className = tone === 'muted' ? 'muted' : tone;
+  }
+
+  // --- Bootstrap ---------------------------------------------------------
+
+  async function boot() {
+    if (!FIREBASE_CONFIG.apiKey) return;  // unconfigured; the markup says so
+
+    const [appNs, authNs, fs, fcm] = await Promise.all([
+      firebaseApp(), firebaseAuth(), firestore(), messagingSdk(),
+    ]);
+
+    const config = { ...FIREBASE_CONFIG };
+    delete config.vapidKey;
+    const app = appNs.initializeApp(config);
+    auth = authNs.getAuth(app);
+    firestoreNs = fs;
+    db = fs.getFirestore(app);
+
+    loadGoogleIdentity();
+    authNs.onAuthStateChanged(auth, (user) => {
+      if (user) onSignedIn(user);
+      else onSignedOut();
+    });
+
+    try {
+      messaging = (await fcm.isSupported()) ? fcm.getMessaging(app) : null;
+    } catch {
+      messaging = null;
+    }
+  }
+
+  // --- Sign-in (Task 3) --------------------------------------------------
+  // Google Identity Services returns an ID token, which is exchanged for a
+  // Firebase session. No secret is involved at any point: the client id is
+  // public by design, and the Firestore rules do the authorising.
+
+  function loadGoogleIdentity() {
+    if (!GOOGLE_CLIENT_ID) return;
+    window.__handleGoogleId = handleGoogleCredential;
+    const s = document.createElement('script');
+    s.src = 'https://accounts.google.com/gsi/client';
+    s.async = true;
+    s.defer = true;
+    document.head.appendChild(s);
+  }
+
+  async function handleGoogleCredential(response) {
+    if (!response?.credential || !auth) return;
+    try {
+      const authNs = await firebaseAuth();
+      const provider = new authNs.GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
+      await authNs.signInWithCredential(
+        auth, authNs.GoogleAuthProvider.credential(response.credential));
+    } catch (e) {
+      say($('config-errors'), `Sign-in failed: ${e.message}`, 'error');
+      $('config-errors').hidden = false;
+    }
+  }
+
+  function renderGoogleButton() {
+    const slot = $('signin-slot');
+    if (!slot || !GOOGLE_CLIENT_ID || !window.google) return;
+    slot.innerHTML = '';
+    window.google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: window.__handleGoogleId,
+    });
+    window.google.accounts.id.renderButton(slot, {
+      theme: 'outline', size: 'large', width: 320, text: 'continue_with',
+    });
+  }
+
+  function onSignedIn(user) {
+    $('signin-slot').hidden = true;
+    $('signed-in').hidden = false;
+    $('user-email').textContent = user.email ?? '(no email)';
+    setFormEnabled(true);
+    loadConfig();
+    loadRuns();
+    refreshPushState();
+    $('config-updated').textContent = `Signed in as ${user.email ?? ''}`;
+  }
+
+  function onSignedOut() {
+    $('signin-slot').hidden = false;
+    $('signed-in').hidden = true;
+    $('runs').innerHTML = '';
+    $('summary').hidden = true;
+    $('history-empty').hidden = true;
+    setFormEnabled(false);
+    renderGoogleButton();
+  }
+
+  function setFormEnabled(enabled) {
+    for (const id of ['llm-prompt', 'whitelist', 'blacklist', 'push-template']) {
+      const el = $(id);
+      if (el) el.disabled = !enabled;
+    }
+    $('save-config').disabled = !enabled;
+    $('enable-push').disabled = !enabled;
+  }
+
+  // --- Run history (Task 4) ----------------------------------------------
+  // Bounded to the latest 15 runs: an unbounded read would be both a billing
+  // problem and a bulk export of the family's history.
+
+  async function loadRuns() {
+    if (!db) return;
+    try {
+      const snapshot = await firestoreNs.getDocs(
+        firestoreNs.query(
+          firestoreNs.collection(db, RUNS_COLLECTION),
+          firestoreNs.orderBy('timestamp', 'desc'),
+          firestoreNs.limit(RUNS_QUERY_LIMIT),
+        ),
+      );
+      const runs = sortRunsNewestFirst(
+        snapshot.docs.map((d) => ({ run_id: d.id, ...d.data() })),
+      );
+      renderRuns(runs);
+    } catch (e) {
+      // permission-denied here almost always means this email is not on the
+      // allowlist in firestore.rules, which is worth saying plainly.
+      say($('history-empty'),
+        `Could not load run history: ${e.message}`, 'error');
+      $('history-empty').hidden = false;
+    }
+  }
+
+  function renderRuns(runs) {
+    const list = $('runs');
+    list.innerHTML = '';
+    $('history-empty').hidden = runs.length > 0;
+    $('summary').hidden = runs.length === 0;
+
+    const s = summariseRuns(runs);
+    $('s-total').textContent = s.total;
+    $('s-success').textContent = s.success;
+    $('s-warn').textContent = s.warn;
+    $('s-error').textContent = s.error;
+    $('s-scanned').textContent = s.emailsScanned;
+    $('s-created').textContent = s.eventsCreated;
+
+    for (const run of runs) {
+      const status = String(run.status ?? 'UNKNOWN').toUpperCase();
+      const metrics = [
+        `${run.emails_scanned ?? 0} emails read`,
+        `${run.events_created ?? 0} events added`,
+        `${run.skipped ?? 0} skipped`,
+      ].join(' · ');
+      const logs = Array.isArray(run.logs) ? run.logs : [];
+
+      const li = document.createElement('li');
+      li.className = 'run';
+      // Every interpolated value goes through escapeHtml. Status and log lines
+      // come from the Pi, but notification bodies originate in email subjects,
+      // which an outside party can influence.
+      li.innerHTML = `
+        <div class="run-top">
+          <span class="badge ${escapeHtml(status)}">${escapeHtml(status)}</span>
+          <span class="run-time">${escapeHtml(formatRunId(run.run_id))}</span>
+        </div>
+        <p class="run-metrics">${escapeHtml(metrics)}</p>
+        ${logs.length ? `<details><summary>Logs</summary>`
+          + `<pre>${escapeHtml(logs.join('\n'))}</pre></details>` : ''}
+      `;
+      list.appendChild(li);
+    }
+  }
+
+  // --- Config editor ------------------------------------------------------
+
+  async function loadConfig() {
+    if (!db) return;
+    try {
+      const snap = await firestoreNs.getDoc(firestoreNs.doc(db, CONFIG_DOC));
+      const data = snap.exists() ? snap.data() : {};
+      $('llm-prompt').value = data.llm_prompt_template ?? '';
+      $('whitelist').value = formatTagList(data.whitelist_domains ?? []);
+      $('blacklist').value = formatTagList(data.blacklist_keywords ?? []);
+      $('push-template').value = data.push_template ?? '';
+      $('config-updated').textContent = data.updated_at
+        ? `Last changed ${new Date(data.updated_at).toLocaleString()}`
+        : 'Using service defaults';
+      renderPreview();
+    } catch (e) {
+      say($('config-errors'), `Could not load settings: ${e.message}`, 'error');
+      $('config-errors').hidden = false;
+    }
+  }
+
+  function renderPreview() {
+    const rendered = renderPushTemplate($('push-template').value, {
+      summary: 'Dentist appointment',
+      date: '2026-10-15',
+      time: '14:30',
+    });
+    $('push-preview').textContent = `Preview: ${rendered}`;
+  }
+
+  async function saveConfig() {
+    const errorsNode = $('config-errors');
+    const savedNode = $('config-saved');
+    errorsNode.hidden = true;
+    savedNode.hidden = true;
+
+    const payload = {
+      llm_prompt_template: $('llm-prompt').value,
+      whitelist_domains: parseTagList($('whitelist').value),
+      blacklist_keywords: parseTagList($('blacklist').value),
+      push_template: $('push-template').value.trim(),
+      updated_at: new Date().toISOString(),
+    };
+
+    // Validate before writing. The Pi reads this document at 05:00 with nobody
+    // watching, so a bad save has to be caught here rather than at 5am.
+    const problems = validateConfig(payload);
+    if (problems.length) {
+      say(errorsNode, problems.join(' '), 'error');
+      errorsNode.hidden = false;
+      return;
+    }
+
+    const button = $('save-config');
+    button.disabled = true;
+    try {
+      await firestoreNs.setDoc(
+        firestoreNs.doc(db, CONFIG_DOC), payload, { merge: true });
+      savedNode.hidden = false;
+      $('config-updated').textContent =
+        `Last changed ${new Date().toLocaleString()}`;
+    } catch (e) {
+      say(errorsNode, `Could not save: ${e.message}`, 'error');
+      errorsNode.hidden = false;
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  // --- Push subscription --------------------------------------------------
+
+  async function refreshPushState() {
+    const node = $('push-state');
+    if (!('Notification' in window)) {
+      say(node, 'This browser does not support notifications.');
+      return;
+    }
+    if (Notification.permission === 'denied') {
+      say(node, 'Notifications are blocked for this site. Re-enable them in '
+        + 'your browser settings.');
+      $('enable-push').disabled = true;
+      return;
+    }
+    if (Notification.permission === 'granted' && messaging) {
+      say(node, 'Notifications are enabled on this device.');
+      return;
+    }
+    say(node, 'Not enabled on this device yet.');
+  }
+
+  async function enablePush() {
+    const node = $('push-state');
+    const button = $('enable-push');
+    button.disabled = true;
+
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        say(node, 'Permission was not granted, so no notifications will arrive.');
+        return;
+      }
+      if (!messaging) {
+        say(node, 'Push is not supported here. On iPhone, add the site to the '
+          + 'Home Screen first.', 'error');
+        return;
+      }
+
+      const registration = await navigator.serviceWorker.register(
+        '/family-assistant/firebase-sw.js',
+      );
+      await navigator.serviceWorker.ready;
+
+      // The worker lives in public/, so its config cannot be baked in at build
+      // time. Hand it over and wait for the ack: getToken() fails if messaging
+      // was never initialised inside the worker.
+      const ready = await initWorker(registration);
+      if (!ready) {
+        say(node, 'The notification service worker did not start.', 'error');
+        return;
+      }
+
+      const fcm = await messagingSdk();
+      const token = await fcm.getToken(messaging, {
+        vapidKey: VAPID_KEY,
+        serviceWorkerRegistration: registration,
+      });
+      if (!token) {
+        say(node, 'This browser did not return a push token.', 'error');
+        return;
+      }
+
+      await storeDeviceToken(token);
+      say(node, 'Notifications are enabled on this device.');
+    } catch (e) {
+      say(node, `Could not enable notifications: ${e.message}`, 'error');
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  /** postMessage handshake; resolves false if the worker never acknowledges. */
+  function initWorker(registration, timeoutMs = 5000) {
+    return new Promise((resolve) => {
+      const worker = registration.active || navigator.serviceWorker.controller;
+      if (!worker) {
+        resolve(false);
+        return;
+      }
+      const channel = new MessageChannel();
+      const timer = setTimeout(() => {
+        channel.port1.close();
+        resolve(false);
+      }, timeoutMs);
+      channel.port1.onmessage = (event) => {
+        clearTimeout(timer);
+        channel.port1.close();
+        resolve(Boolean(event.data?.ok));
+      };
+      worker.postMessage(
+        { type: 'INIT', config: { ...FIREBASE_CONFIG }, vapidKey: VAPID_KEY },
+        [channel.port2],
+      );
+    });
+  }
+
+  async function storeDeviceToken(token) {
+    const user = auth?.currentUser;
+    if (!user) return;
+    // The document id is a hash of the token. Reading the devices collection
+    // therefore does not expose working push credentials, and no token can be
+    // guessed from a document listing.
+    const id = await deviceDocumentId(token);
+    await firestoreNs.setDoc(firestoreNs.doc(db, DEVICES_COLLECTION, id), {
+      token,
+      owner: user.email,
+      platform: navigator.userAgent.slice(0, 120),
+      updated_at: new Date().toISOString(),
+    });
+  }
+
+  // --- Wire up -----------------------------------------------------------
+
+  function wire() {
+    $('save-config')?.addEventListener('click', saveConfig);
+    $('enable-push')?.addEventListener('click', enablePush);
+    $('refresh')?.addEventListener('click', loadRuns);
+    $('sign-out')?.addEventListener('click', async () => {
+      const authNs = await firebaseAuth();
+      await authNs.signOut(auth);
+    });
+    $('push-template')?.addEventListener('input', renderPreview);
+  }
+
+  wire();
+  boot().catch((e) => {
+    say($('push-state'), `Dashboard could not start: ${e.message}`, 'error');
+  });
+</script>
