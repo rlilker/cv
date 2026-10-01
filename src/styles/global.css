@@ -49,6 +49,14 @@
 
   /* Type */
   --font: 'Roboto Flex Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  /* Reading measure.
+     The page is 1366px wide with 40px gutters, so a fixed 68-70ch column left
+     body copy occupying under half the screen on a desktop. These widen the
+     measure to use the space that is actually there; the paragraphs reflow
+     normally on narrow screens, where they were already fine. */
+  --measure: 96ch;      /* body copy */
+  --measure-lead: 104ch; /* lead and summary paragraphs, one step wider */
 }
 
 /* ── Reset ──────────────────────────────────────────────────────────────── */

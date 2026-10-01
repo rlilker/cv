@@ -75,14 +75,24 @@ import { profile, lastName } from '../data/cv';
     color: var(--ink-soft);
   }
 
-  /* ── Intro copy — two columns on desktop, as in the reference ────────── */
+  /* ── Intro copy ────────────────────────────────────────────────────── */
 
+  /*
+   * The reference design sets this as two columns, but cv.json ships a single
+   * intro paragraph. A lone item in a two-column grid sits in column one at
+   * roughly 470px, directly above two buttons that span the full 1286px, which
+   * is what made the text look clipped on a desktop.
+   *
+   * `auto-fit` with a `min()` floor collapses the empty track when there is
+   * only one child, so the paragraph spans the full width. If a second
+   * paragraph is ever added, the grid re-forms into two columns on its own.
+   */
   .intro-cols {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 40ch), 1fr));
     gap: 24px;
     width: 100%;
-    max-width: 1000px;
+    max-width: var(--measure-lead);
     font-size: 20px;
     line-height: 1.45;
     color: var(--ink);
@@ -157,7 +167,12 @@ import { profile, lastName } from '../data/cv';
   /* ── Responsive ──────────────────────────────────────────────────────── */
 
   @media (max-width: 900px) {
-    .intro-cols,
+    /*
+     * Only .action-row needs pinning to two columns. .intro-cols is left alone
+     * deliberately: it already collapses to a single column on its own via
+     * minmax(min(100%, 40ch), 1fr), and re-forcing a two-column track here is
+     * what kept the single paragraph narrow in the first place.
+     */
     .action-row {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }

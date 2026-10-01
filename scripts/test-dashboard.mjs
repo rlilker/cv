@@ -455,6 +455,183 @@ await check('dashboard is a static page, not a server route', () => {
   ok(!/export\s+(const\s+)?(onRequest|POST|GET|PUT|DELETE)\b/.test(page));
 });
 
+// --- Sign-in button -------------------------------------------------------
+// The deployed page showed the heading "Sign in" with nothing under it. The
+// cause was a race: the GIS <script> is injected async, onAuthStateChanged
+// fires with a null user first, renderGoogleButton() bails out because
+// window.google is undefined, and nothing ever called it again.
+
+await check('the sign-in button is rendered when the GIS script loads', () => {
+  // Without a load handler the button is never drawn.
+  ok(/addEventListener\(\s*['"]load['"]\s*,\s*renderGoogleButton\s*\)/.test(page),
+     'the injected GIS script must render the button on load. onAuthStateChanged '
+     + 'fires long before the script arrives, so the only reliable moment to '
+     + 'render is the load event.');
+});
+
+await check('the sign-in button is not drawn twice', () => {
+  ok(/window\.google\?\.accounts\?\.id/.test(page),
+     'renderGoogleButton must check the SDK is present before use, and must not '
+     + 're-initialize when it already is (GIS errors on a second initialize)');
+  ok(/auth\?\.currentUser/.test(page),
+     'renderGoogleButton must bail out once someone is signed in, or signing '
+     + 'back in leaves two buttons on the page');
+});
+
+await check('the button reads "Sign in with Google"', () => {
+  ok(page.includes("text: 'signin_with'"),
+     "renderButton needs text: 'signin_with' to say \"Sign in with Google\"");
+  ok(!page.includes("text: 'continue_with'"),
+     "'continue_with' renders \"Continue with Google\", which contradicts the "
+     + 'heading above it');
+});
+
+await check('a sign-in failure is reported next to the sign-in card', () => {
+  // It used to be written into the settings form, far below the fold.
+  ok(page.includes("id=\"auth-error\""));
+  ok(/say\(\$\('auth-error'\)/.test(page),
+     'sign-in errors belong in the auth card, not the config form');
+});
+
+// --- Gating the panel on sign-in ------------------------------------------
+
+await check('the panel is hidden until someone signs in', () => {
+  for (const id of ['history', 'config', 'push']) {
+    ok(new RegExp(`id="${id}"[^>]*hidden`).test(page),
+       `the #${id} section must start hidden, so a signed-out visitor is not `
+       + 'shown a control panel they cannot use');
+  }
+  ok(page.includes('setPanelVisible'), 'sign-in must reveal the panel');
+  ok(/function onSignedIn[\s\S]*?setPanelVisible\(true\)/.test(page),
+     'onSignedIn must reveal the panel');
+  ok(/function onSignedOut[\s\S]*?setPanelVisible\(false\)/.test(page),
+     'onSignedOut must hide it again, or signing out leaves the panel visible');
+});
+
+await check('hidden actually hides, despite author display rules', () => {
+  // An author `display` beats the user-agent's `[hidden] { display: none }`.
+  // .summary is a grid, so `hidden` was already a no-op on it before this
+  // rule existed - the summary strip could never be hidden.
+  ok(/\[hidden\]\s*\{\s*display:\s*none\s*!important/.test(page),
+     'the page needs an explicit [hidden] rule, or any element with an author '
+     + 'display rule stays visible when hidden is set');
+});
+
+await check('gating the panel is not mistaken for access control', () => {
+  // A future reader must not "simplify" this into a security boundary.
+  ok(/firestore\.rules/i.test(page),
+     'the page should say that the rules, not the hidden attribute, are what '
+     + 'authorise access');
+});
+
+// --- DOM lookups ----------------------------------------------------------
+// The real cause of the missing button. $ is a getElementById shorthand, so
+// $('#fb-config') searches for an id of literally "#fb-config" and returns
+// null. That threw on the first line of the module and killed the whole
+// script: no boot(), no Google script, no button - and no error on screen.
+
+await check('getElementById shorthand is never given a CSS selector', () => {
+  // Comments are stripped first: this file's own explanation of the bug quotes
+  // the broken form, and matching that prose would fail the build forever.
+  const code = page.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const bad = [...code.matchAll(/\$\(\s*['"]#/g)];
+  eq(bad.length, 0,
+     `found ${bad.length} call(s) like $('#some-id'). $ wraps `
+     + 'document.getElementById, which wants a bare id with no "#". This threw '
+     + 'a TypeError that silently disabled the entire dashboard.');
+});
+
+await check('the dashboard reads its build config from the DOM', () => {
+  const code = page.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  ok(code.includes("$('fb-config')"), 'the config block is read by id');
+  ok(code.includes("$('g_id_onload')"), 'the client id is read by id');
+});
+
+await check('a missing config block fails loudly, not silently', () => {
+  // The failure mode that hid this for so long: the page rendered, looked
+  // plausible, and simply never did anything.
+  ok(/missing from the page/.test(page),
+     'readBuildConfig must throw a named error when the config block is absent');
+  ok(/could not start/i.test(page),
+     'a startup failure must be shown to the user rather than swallowed');
+});
+
+await check('startup waits for the DOM before reading it', () => {
+  ok(/DOMContentLoaded|readyState/.test(page),
+     'the module must not assume its elements are parsed; defer to '
+     + "DOMContentLoaded or check document.readyState");
+});
+
+await check('the config is read once, not at module scope', () => {
+  // Module-scope consts reading the DOM are what made this fragile. The
+  // values are assigned inside a function called from start() instead.
+  ok(/function readBuildConfig\(\)/.test(page),
+     'build config should be read by a function, not a top-level const');
+  ok(!/const FIREBASE_CONFIG\s*=/.test(page),
+     'FIREBASE_CONFIG must not be initialised from the DOM at module scope');
+});
+
+// --- Reading measure ------------------------------------------------------
+// Body copy was capped at 68-70ch inside a 1366px page with 40px gutters, so
+// on a desktop it used under half the width while the cards and buttons beside
+// it spanned the full page. The measure is now a token in global.css.
+
+const cssPath = resolve(root, 'src/styles/global.css');
+const introPath = resolve(root, 'src/components/Intro.astro');
+let css = '';
+let intro = '';
+try {
+  css = readFileSync(cssPath, 'utf8');
+  intro = readFileSync(introPath, 'utf8');
+} catch (e) {
+  console.error(`\nFATAL: could not read layout sources: ${e.message}\n`);
+  process.exit(1);
+}
+
+await check('the reading measure is a shared token', () => {
+  // One place to retune, rather than a hard-coded number in five components.
+  ok(/--measure:\s*\d+ch/.test(css), 'global.css must define --measure');
+  ok(/--measure-lead:\s*\d+ch/.test(css),
+     'global.css must define --measure-lead for lead paragraphs');
+});
+
+await check('the measure is wider than the old 70ch cap', () => {
+  // The regression: a narrower token would put the site back where it started.
+  const measure = Number(/--measure:\s*(\d+)ch/.test(css)
+    && css.match(/--measure:\s*(\d+)ch/)[1]);
+  ok(measure >= 88, `--measure is ${measure}ch; body copy was 68-70ch and read `
+     + 'as half a column on a desktop. 88ch or wider restores the width.');
+});
+
+await check('body copy uses the token, not a hard-coded ch cap', () => {
+  for (const name of ['Experience', 'Interests', 'Skills']) {
+    const src = readFileSync(resolve(root, `src/components/${name}.astro`), 'utf8');
+    ok(!/max-width:\s*\d+ch/.test(src),
+       `${name}.astro still caps text at a hard-coded ch width, so it will keep `
+       + 'the narrow column on a desktop');
+  }
+  const fa = readFileSync(
+    resolve(root, 'src/pages/family-assistant/index.astro'), 'utf8');
+  ok(!/max-width:\s*(68|70)ch/.test(fa),
+     'the Family Assistant summary and prose are still capped at 68/70ch');
+});
+
+await check('a single intro paragraph is not trapped in one grid column', () => {
+  // cv.json ships one intro paragraph. In a fixed two-column grid it sat in
+  // column one at ~470px, directly above two buttons spanning 1286px.
+  ok(/grid-template-columns:\s*repeat\(auto-fit,/.test(intro),
+     '.intro-cols must use auto-fit so an empty track collapses when there is '
+     + 'only one paragraph');
+  // A media query re-forcing two columns silently undoes the above. Comments
+  // are stripped first: they discuss this very rule, and matching prose in a
+  // comment would fail the build for doing the right thing.
+  const rules = intro.replace(/\/\*[\s\S]*?\*\//g, '');
+  const forced = /@media[^{]*\{[^}]*\.intro-cols[^{]*\{[^}]*grid-template-columns:\s*repeat\(\s*2/.test(rules);
+  ok(!forced,
+     'no media query may force .intro-cols back to two fixed columns, or the '
+     + 'narrow column returns');
+});
+
 // --- Report ---------------------------------------------------------------
 
 console.log(`\nDashboard: ${passed} passed, ${failed} failed\n`);

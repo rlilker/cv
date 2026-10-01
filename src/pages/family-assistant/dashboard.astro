@@ -109,10 +109,20 @@ const description =
           <p>Signed in as <strong id="user-email"></strong></p>
           <button type="button" class="btn ghost" id="sign-out">Sign out</button>
         </div>
+
+        <p class="error" id="auth-error" role="alert" hidden></p>
       </section>
 
-      <!-- Run history --------------------------------------------------- -->
-      <section class="card" id="history" aria-labelledby="history-heading">
+      {/*
+        Run history, the settings editor and push are hidden until there is a
+        signed-in user, so a visitor who lands here is not shown a control panel
+        they cannot use.
+
+        This is presentation, not security: the markup is public and the data is
+        not fetched until sign-in succeeds. firestore.rules is the only thing
+        that actually authorises a read or a write.
+      */}
+      <section class="card" id="history" aria-labelledby="history-heading" hidden>
         <div class="card-head">
           <h2 id="history-heading">Recent runs</h2>
           <button type="button" class="btn ghost" id="refresh">Refresh</button>
@@ -135,7 +145,7 @@ const description =
       </section>
 
       <!-- Config editor -------------------------------------------------- -->
-      <section class="card" id="config" aria-labelledby="config-heading">
+      <section class="card" id="config" aria-labelledby="config-heading" hidden>
         <div class="card-head">
           <h2 id="config-heading">Extraction settings</h2>
           <span class="stamp" id="config-updated"></span>
@@ -204,7 +214,7 @@ const description =
       </section>
 
       <!-- Push ----------------------------------------------------------- -->
-      <section class="card" id="push" aria-labelledby="push-heading">
+      <section class="card" id="push" aria-labelledby="push-heading" hidden>
         <h2 id="push-heading">Notifications on this device</h2>
         <p class="muted">
           Subscribe this phone or computer to receive a push when an event is
@@ -225,7 +235,28 @@ const description =
   </main>
 </BaseLayout>
 <style>
-  .dash { max-width: 52rem; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+  /*
+   * The page container, matching src/pages/index.astro so the dashboard lines
+   * up with the rest of the site instead of sitting in a narrower column.
+   */
+  .dash {
+    width: 100%;
+    max-width: var(--page-max);
+    margin: 24px auto 0;
+    padding: 0 var(--gutter) 4rem;
+  }
+
+  /*
+   * Author rules beat the user-agent's `[hidden] { display: none }`, so any
+   * element given `display` here (.summary is a grid) stays visible even with
+   * the hidden attribute set. This is what actually hides the panel before
+   * sign-in, and what lets the summary toggle.
+   */
+  [hidden] { display: none !important; }
+
+  /* Sign-in ------------------------------------------------------- */
+
+  #signin-slot { min-height: 44px; }
   .dash-head h1 { margin: 0.5rem 0 0.25rem; font-size: 2rem; }
   .dash-sub { color: var(--muted, #5b6472); margin-top: 0; }
 
@@ -333,13 +364,52 @@ const description =
     validateConfig, deviceDocumentId, RUNS_QUERY_LIMIT,
   } from '../../lib/dashboard.js';
 
-  const FIREBASE_CONFIG = JSON.parse($('#fb-config').textContent);
-  const GOOGLE_CLIENT_ID = $('#g_id_onload')?.dataset.clientId ?? '';
-  const VAPID_KEY = FIREBASE_CONFIG.vapidKey ?? '';
+  /*
+   * $ is a getElementById shorthand: it takes a bare id, NOT a CSS selector.
+   *
+   * These two lookups used to be written as $('#fb-config') and
+   * $('#g_id_onload'). The leading '#' made them search for an element whose id
+   * was literally "#fb-config", which does not exist, so getElementById
+   * returned null and the whole module threw
+   *
+   *     TypeError: Cannot read properties of null (reading 'textContent')
+   *
+   * The error killed the script before boot() ran, so the Google Identity
+   * Services script was never injected and the page showed the heading
+   * "Sign in" with no button under it.
+   */
+  const $ = (id) => document.getElementById(id);
+
+  /*
+   * The Firebase config and OAuth client id are read from the DOM by
+   * readBuildConfig() rather than at module scope, so the lookup cannot race
+   * the parser regardless of when the module is evaluated.
+   */
+  let FIREBASE_CONFIG = {};
+  let GOOGLE_CLIENT_ID = '';
+  let VAPID_KEY = '';
+
+  function readBuildConfig() {
+    const node = $('fb-config');
+    if (!node) {
+      throw new Error('the Firebase config block is missing from the page');
+    }
+    FIREBASE_CONFIG = JSON.parse(node.textContent);
+    GOOGLE_CLIENT_ID = $('g_id_onload')?.dataset.clientId ?? '';
+    VAPID_KEY = FIREBASE_CONFIG.vapidKey ?? '';
+  }
 
   const CONFIG_DOC = 'config/app_settings';
   const RUNS_COLLECTION = 'runs';
   const DEVICES_COLLECTION = 'devices';
+
+  /**
+   * Sections revealed once someone is signed in.
+   *
+   * These start hidden in the markup, so the page shows a sign-in card and
+   * nothing else until a session exists.
+   */
+  const PANEL_IDS = ['history', 'config', 'push'];
 
   /**
    * Addresses allowed to change the extraction settings.
@@ -373,8 +443,6 @@ const description =
 
   /** True when the signed-in account may change the extraction settings. */
   let isAdmin = false;
-
-  const $ = (id) => document.getElementById(id);
 
   /** Write a status line, choosing the tone class. */
   function say(node, message, tone = 'muted') {
@@ -420,10 +488,35 @@ const description =
   function loadGoogleIdentity() {
     if (!GOOGLE_CLIENT_ID) return;
     window.__handleGoogleId = handleGoogleCredential;
+
+    // Guard against a second injection: GIS logs an error if initialize() is
+    // called twice, and the button would be rendered into a slot we just wiped.
+    if (window.google?.accounts?.id) {
+      renderGoogleButton();
+      return;
+    }
+
     const s = document.createElement('script');
     s.src = 'https://accounts.google.com/gsi/client';
     s.async = true;
     s.defer = true;
+    /*
+     * onAuthStateChanged fires with a null user long before this network
+     * request resolves, so onSignedOut() runs while window.google is still
+     * undefined. renderGoogleButton() bails out at that point and, without
+     * these handlers, nothing ever called it again: the slot stayed empty and
+     * the page showed the heading "Sign in" with no button under it.
+     *
+     * Rendering on load is what puts the button on the page. onerror says why
+     * it is missing when the script cannot be fetched at all.
+     */
+    s.addEventListener('load', renderGoogleButton);
+    s.addEventListener('error', () => {
+      say($('auth-error'),
+        'The Google sign-in script could not be loaded. Check the connection '
+        + 'and reload the page.', 'error');
+      $('auth-error').hidden = false;
+    });
     document.head.appendChild(s);
   }
 
@@ -436,21 +529,28 @@ const description =
       await authNs.signInWithCredential(
         auth, authNs.GoogleAuthProvider.credential(response.credential));
     } catch (e) {
-      say($('config-errors'), `Sign-in failed: ${e.message}`, 'error');
-      $('config-errors').hidden = false;
+      // Sign-in problems are reported next to the sign-in card, not in the
+      // settings form far down the page where the user is not looking.
+      say($('auth-error'), `Sign-in failed: ${e.message}`, 'error');
+      $('auth-error').hidden = false;
     }
   }
 
   function renderGoogleButton() {
     const slot = $('signin-slot');
-    if (!slot || !GOOGLE_CLIENT_ID || !window.google) return;
+    if (!slot || !GOOGLE_CLIENT_ID || !window.google?.accounts?.id) return;
+    // Signed in: re-rendering would put a second button next to the account.
+    if (auth?.currentUser) return;
     slot.innerHTML = '';
     window.google.accounts.id.initialize({
       client_id: GOOGLE_CLIENT_ID,
       callback: window.__handleGoogleId,
     });
     window.google.accounts.id.renderButton(slot, {
-      theme: 'outline', size: 'large', width: 320, text: 'continue_with',
+      // 'signin_with' renders "Sign in with Google". The previous
+      // 'continue_with' said "Continue with Google", which does not match the
+      // heading above it.
+      theme: 'outline', size: 'large', width: 320, text: 'signin_with',
     });
   }
 
@@ -459,6 +559,7 @@ const description =
     $('signed-in').hidden = false;
     $('user-email').textContent = user.email ?? '(no email)';
     isAdmin = ADMIN_EMAILS.has((user.email ?? '').toLowerCase());
+    setPanelVisible(true);
     applyAdminState();
     setFormEnabled(true);
     loadConfig();
@@ -471,12 +572,29 @@ const description =
     $('signin-slot').hidden = false;
     $('signed-in').hidden = true;
     isAdmin = false;
+    setPanelVisible(false);
     applyAdminState();
     $('runs').innerHTML = '';
     $('summary').hidden = true;
     $('history-empty').hidden = true;
     setFormEnabled(false);
     renderGoogleButton();
+  }
+
+  /**
+   * Show or hide the parts of the page that only make sense for a signed-in
+   * family member.
+   *
+   * Purely cosmetic. Nothing here is confidential and nothing here is an
+   * access control: the markup is served to anyone who requests it, and no
+   * Firestore read or write is issued until a session exists. firestore.rules
+   * decides who may actually read the runs or change the settings.
+   */
+  function setPanelVisible(visible) {
+    for (const id of PANEL_IDS) {
+      const node = $(id);
+      if (node) node.hidden = !visible;
+    }
   }
 
   /**
@@ -790,8 +908,27 @@ const description =
     $('push-template')?.addEventListener('input', renderPreview);
   }
 
-  wire();
-  boot().catch((e) => {
-    say($('push-state'), `Dashboard could not start: ${e.message}`, 'error');
-  });
+  /**
+   * Start once the DOM is parsed.
+   *
+   * A module script is normally deferred, so the elements this page reads
+   * should already exist. "Normally" is not a guarantee worth depending on:
+   * reading them at module scope threw when it did not hold, and the failure
+   * was silent to the user. Waiting for readyState removes the assumption.
+   */
+  function start() {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', start, { once: true });
+      return;
+    }
+    readBuildConfig();
+    wire();
+    boot().catch((e) => {
+      say($('push-state'), `Dashboard could not start: ${e.message}`, 'error');
+      say($('auth-error'), `Dashboard could not start: ${e.message}`, 'error');
+      $('auth-error').hidden = false;
+    });
+  }
+
+  start();
 </script>
