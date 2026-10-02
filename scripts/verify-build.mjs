@@ -125,7 +125,14 @@ check('no tagline field left in the CV data', !('tagline' in data.profile));
 
 section('Employment history');
 check('PortSwigger leads employment history', data.roles[0]?.id === 'portswigger');
-check('PortSwigger Java and .NET work', html.home.includes('Burp Suite Professional') && html.home.includes('Internal Operations'));
+// PortSwigger spans two distinct kinds of work: the Java product side and the
+// .NET internal platforms. Both are asserted separately, because a role that
+// renders only one of them is still a successful build and a much weaker CV.
+check(
+  'PortSwigger Java and .NET work',
+  html.home.includes('flagship security testing desktop toolkit') &&
+    html.home.includes('high-availability backend services and platforms'),
+);
 for (const role of data.roles) {
   check(
     `${role.company} (${role.start}–${role.end})`,

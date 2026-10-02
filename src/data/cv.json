@@ -21,13 +21,16 @@
       "end": "Present",
       "summary": "Full-stack engineer contributing across both flagship product engineering and mission-critical business platforms in an agile, flat-hierarchy engineering culture.",
       "highlights": [
-        "Burp Suite Professional: Designed and shipped new features in Java for PortSwigger's flagship security testing desktop toolkit, used daily by over 80,000 penetration testers and security professionals worldwide.",
+        "Designed and shipped new features in Java for PortSwigger's flagship security testing desktop toolkit, including an AI feature integrating an LLM service and validated with DeepEval, used daily by over 80,000 penetration testers and security professionals worldwide.",
         "Practiced rigorous Test-Driven Development (TDD) and Extreme Programming (XP) with continuous pair programming, engineering concurrent, performant Java code integrated into complex security workflows.",
-        "Internal Operations: Engineered and maintained high-availability backend services and platforms in .NET (C#) and SQL Server/PostgreSQL, powering automated software licensing, global payment processing, and subscription renewals.",
-        "Modernized core operational infrastructure and internal services on AWS, improving system reliability, auditability, and operational automation across business-critical pipelines.",
+        "Engineered and maintained high-availability backend services and platforms in .NET (C#) and SQL Server/PostgreSQL, powering automated software licensing, global payment processing, and subscription renewals.",
+        "Adopted AI-assisted development with Codex and Claude Code, moving from using generative, text-based AI to a fully AI-native approach across the software development lifecycle.",
+        "Worked as sole developer on the in-house feedback and performance review system, trusted with highly confidential data and processes and accountable for delivering them alone.",
+        "Co-led the graduate coaching programme, mentoring early-career engineers and running multiple Grad Boot Camps.",
+        "Worked closely with the kitchen team to design and build their own app in Lovable for managing the weekly menus, taking it from requirements through to a tool they use.",
         "Collaborated across cross-functional squads to uphold high code-quality bars, collective code ownership, and continuous integration."
       ],
-      "stack": ["Java", ".NET", "C#", "SQL Server", "PostgreSQL", "AWS", "TDD", "XP", "CI/CD", "Docker"]
+      "stack": ["Java", ".NET", "C#", "SQL Server", "PostgreSQL", "MySQL", "MongoDB", "AWS", "TDD", "XP", "CI/CD", "Docker"]
     },
     {
       "id": "made-tech",
