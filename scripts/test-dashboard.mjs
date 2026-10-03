@@ -807,6 +807,80 @@ await check('the incorrect flag is only offered to admins', () => {
      'a rules rejection must be reported plainly, not swallowed');
 });
 
+await check('every imported constant the page uses is in the import list', () => {
+  // DEFAULT_PUSH_TEMPLATE was referenced in loadConfig() but never imported. A
+  // module does not fail on an undefined identifier until that line runs, so the
+  // form rendered blank with no error anywhere - the "empty, uneditable" report.
+  // Static import checking is what catches this; the browser only finds out
+  // when a user with no saved config opens the page.
+  const importBlock = page.match(/import \{([\s\S]*?)\} from '\.\.\/\.\.\/lib\/dashboard\.js'/);
+  ok(importBlock, 'could not find the dashboard.js import block');
+  const imported = new Set(
+    importBlock[1].split(',').map((s) => s.trim()).filter(Boolean),
+  );
+  const body = page.slice(page.indexOf('</script>', page.indexOf(importBlock[0])));
+  // DEFAULT_* and RUNS_QUERY_LIMIT are the bare-constant references at risk.
+  for (const name of [...body.matchAll(/\b(DEFAULT_[A-Z_]+|RUNS_QUERY_LIMIT)\b/g)]) {
+    ok(imported.has(name[1]),
+      `${name[1]} is used in the page but not imported from dashboard.js; it `
+      + 'will be undefined at runtime and throw only on the code path that uses it');
+  }
+});
+
+await check('the service worker file has LF endings', () => {
+  // CRLF in a served .js is not cosmetic: a module worker is parsed by V8 and
+  // the carriage returns made evaluation fail, which surfaced to the user as
+  // "ServiceWorker script evaluation failed" and no notifications, ever.
+  //
+  // .gitattributes says eol=lf, but that only applies to files committed after
+  // the rule existed - this one was already in the repository with CRLF, so git
+  // had nothing to normalise. Assert the served bytes rather than trusting the
+  // attribute.
+  const swPath = resolve(root, 'public/family-assistant/firebase-sw.js');
+  const raw = readFileSync(swPath);
+  ok(!raw.includes(0x0d),
+    'firebase-sw.js contains CR characters. Git does not retro-normalise a file '
+    + 'already committed before .gitattributes, so this has to be checked.');
+});
+
+await check('every public asset served to the browser has LF endings', () => {
+  // The same trap applies to any file a browser parses. Cheap to check, and the
+  // failure mode (a script silently refused to evaluate) is very hard to spot.
+  const offenders = [];
+  for (const name of ['firebase-sw.js', 'firebase-messaging-sw.js']) {
+    const p = resolve(root, 'public/family-assistant', name);
+    let raw;
+    try { raw = readFileSync(p); } catch { continue; }
+    if (raw.includes(0x0d)) offenders.push(name);
+  }
+  ok(offenders.length === 0,
+    `CRLF in served scripts: ${offenders.join(', ')}`);
+});
+
+await check('the worker only imports exports that exist', () => {
+  // onMessage does NOT exist in firebase-messaging-sw.js - it is compat-only.
+  // Importing it is a SyntaxError at module-evaluation time, so the worker
+  // never registers and no subscription can ever be created. This is the bug
+  // that actually stopped notifications; the assertion is the cheap guard that
+  // stops it coming back.
+  const sw = readFileSync(
+    resolve(root, 'public/family-assistant/firebase-sw.js'), 'utf8');
+  const imports = [...sw.matchAll(/import\s*\{([^}]+)\}\s*from\s*'([^']+)'/g)];
+  ok(imports.length > 0, 'expected the worker to import the Firebase SDK');
+
+  const swImport = imports.find(([, , url]) => /firebase-messaging-sw\.js$/.test(url));
+  ok(swImport, 'expected an import from firebase-messaging-sw.js');
+  const names = swImport[1].split(',').map((s) => s.trim());
+  for (const forbidden of ['onMessage']) {
+    ok(!names.includes(forbidden),
+      `${forbidden} is not exported by firebase-messaging-sw.js (it is a `
+      + 'compat-only API). Importing it breaks the module and the worker will '
+      + 'never register.');
+  }
+  ok(names.includes('getMessaging'),
+    'getMessaging is required and does exist in the modular build');
+});
+
 // --- Report ---------------------------------------------------------------
 
 console.log(`\nDashboard: ${passed} passed, ${failed} failed\n`);

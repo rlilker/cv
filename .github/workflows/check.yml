@@ -44,3 +44,42 @@ jobs:
       # build + verify-build + validate-infra + selftest-infra.
       - name: Run tests
         run: npm test
+
+  e2e:
+    name: Browser tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Pinned so a new browser release cannot turn a pull request red for
+      # reasons unrelated to the change. Bump deliberately, not incidentally.
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      # The suite builds the site itself with placeholder Firebase values and
+      # stubs the SDK inside the browser, so it needs no project and no
+      # credentials.
+      - name: Run browser tests
+        run: npx playwright test
+
+      # Traces on failure: the whole value of a browser test is what it
+      # captured, and a red CI run with no artefact is unactionable.
+      - name: Upload traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: ignore

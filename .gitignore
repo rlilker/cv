@@ -116,3 +116,10 @@ probe.cjs
 # CloudFormation deploy logs
 stack.log
 stack.err
+
+# Playwright: traces and screenshots from a failed browser run. Uploaded as a CI
+# artefact on failure; committing them would bury the repository in noise.
+test-results/
+playwright-report/
+blob-report/
+.playwright/

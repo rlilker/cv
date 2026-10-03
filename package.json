@@ -15,6 +15,9 @@
     "check:shell": "node scripts/check-workflow-shell.mjs",
     "check": "astro check",
     "test:dashboard": "node scripts/test-dashboard.mjs",
+    "build:e2e": "node tests/e2e/build.mjs",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "test": "npm run build && npm run verify && npm run validate:infra && npm run selftest:infra && npm run check:shell && npm run test:dashboard",
     "preview": "astro preview"
   },
@@ -23,6 +26,7 @@
     "astro": "^5.7.5"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "typescript": "^5.9.3",
     "yaml": "^2.9.1"
   },

@@ -7,6 +7,14 @@
  * time, which is the worst possible failure for this file: the button appears to
  * work and no notification ever arrives.
  *
+ * `onMessage` does NOT exist in this module. firebase-messaging-sw.js exports
+ * only getMessaging, isSupported, onBackgroundMessage and an experimental
+ * helper. Importing onMessage here was a hard SyntaxError at module-evaluation
+ * time, so the browser rejected registration with "ServiceWorker script
+ * evaluation failed" and subscriptions could never be created. In a service
+ * worker the correct API is onBackgroundMessage, or the plain `push` listener
+ * at the bottom of this file.
+ *
  * Scope: served from /family-assistant/ so its scope covers the dashboard page
  * without needing a Service-Worker-Allowed header.
  *
@@ -18,7 +26,7 @@
  */
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js';
-import { getMessaging, onMessage } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-messaging-sw.js';
+import { getMessaging, onBackgroundMessage } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-messaging-sw.js';
 
 let messaging = null;
 
@@ -27,7 +35,7 @@ function initMessaging(config) {
   if (messaging || !config || !config.apiKey) return messaging;
   try {
     messaging = getMessaging(initializeApp(config));
-    attachForegroundHandler();
+    attachBackgroundHandler();
   } catch (e) {
     // A worker that throws on load never registers, and the page's getToken()
     // then fails with a confusing error. Fail soft instead.
@@ -36,8 +44,11 @@ function initMessaging(config) {
   return messaging;
 }
 
-function attachForegroundHandler() {
-  onMessage(messaging, (payload) => {
+function attachBackgroundHandler() {
+  // onBackgroundMessage is the service-worker-side counterpart to the page's
+  // onMessage. It only fires while no client is controlling the worker, which
+  // is exactly the case where nothing else would display the payload.
+  onBackgroundMessage(messaging, (payload) => {
     const n = payload?.notification ?? {};
     showNotification(n.title ?? 'Family Assistant', {
       body: n.body ?? '',

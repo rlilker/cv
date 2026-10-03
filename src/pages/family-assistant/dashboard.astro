@@ -471,7 +471,7 @@ const description =
     summariseRuns, formatRunId, sortRunsNewestFirst,
     parseTagList, formatTagList, renderPushTemplate, escapeHtml,
     validateConfig, deviceDocumentId, RUNS_QUERY_LIMIT,
-    DEFAULT_LLM_PROMPT,
+    DEFAULT_LLM_PROMPT, DEFAULT_PUSH_TEMPLATE,
   } from '../../lib/dashboard.js';
 
   /*
@@ -725,17 +725,27 @@ const description =
   function applyAdminState() {
     const note = $('config-readonly');
     const save = $('save-config');
+    // readOnly is SET UNCONDITIONALLY, in both branches.
+    //
+    // It used to be set only in the else branch, so it could never be cleared:
+    // onAuthStateChanged fires with a null user first, applyAdminState() set
+    // readOnly on every field at that point, and when a parent then signed in
+    // the flag stayed. The fields looked normal - focusable, focus-styled,
+    // showing a value - but swallowed every keystroke, which is what "acts like
+    // a button when pressed" describes. This is why a readOnly check written as
+    // "is it disabled?" passed while typing was impossible.
+    for (const id of ['llm-prompt', 'whitelist', 'blacklist-domains',
+      'blacklist', 'push-template']) {
+      const el = $(id);
+      if (el) el.readOnly = !isAdmin;
+    }
+
     if (isAdmin) {
       note.hidden = true;
       save.hidden = false;
     } else {
       note.hidden = false;
       save.hidden = true;
-      for (const id of ['llm-prompt', 'whitelist', 'blacklist-domains',
-        'blacklist', 'push-template']) {
-        const el = $(id);
-        if (el) el.readOnly = true;
-      }
     }
   }
 
