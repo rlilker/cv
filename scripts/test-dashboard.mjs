@@ -632,6 +632,113 @@ await check('a single intro paragraph is not trapped in one grid column', () => 
      + 'narrow column returns');
 });
 
+// --- Service worker registration ------------------------------------------
+// The subscription flow asks for permission, then fails to register the worker:
+// "ServiceWorker script evaluation failed".
+//
+// firebase-sw.js uses top-level `import`, which is only legal in a MODULE
+// worker. register() defaults to classic, where `import` is a SyntaxError, so
+// the script never evaluates and registration rejects. Permission was already
+// granted by then, which is why it looked like the browser was at fault.
+
+await check('the service worker is registered as a module', () => {
+  // The explanatory comment sits between the call and the options, so the
+  // window has to be generous; 400 chars was not enough.
+  ok(/serviceWorker\.register\([\s\S]{0,800}?type:\s*'module'/.test(page),
+     'the worker uses top-level `import`, so it must be registered with '
+     + "{ type: 'module' }; the default classic worker cannot parse it");
+});
+
+await check('the service worker script really does use import', () => {
+  // Guards the test above from passing vacuously: if the worker were rewritten
+  // to use importScripts, requiring type:'module' would become wrong.
+  const sw = readFileSync(
+    resolve(root, 'public/family-assistant/firebase-sw.js'), 'utf8');
+  ok(/^import\s/m.test(sw),
+     'firebase-sw.js is expected to use ESM imports; if this changed, revisit '
+     + "the { type: 'module' } registration");
+});
+
+// --- Config form must not render empty -------------------------------------
+// config/app_settings does not exist until somebody saves it. The dashboard
+// rendered four blank inputs, which read as broken and uneditable rather than
+// as "showing defaults".
+
+await check('the config form falls back to the service defaults', () => {
+  ok(/llm-prompt'\)\.value = data\.llm_prompt_template \?\? DEFAULT_LLM_PROMPT/.test(page),
+     'an absent settings document must show DEFAULT_LLM_PROMPT, not an empty box');
+  ok(/push-template'\)\.value = data\.push_template \?\? DEFAULT_PUSH_TEMPLATE/.test(page),
+     'an absent settings document must show DEFAULT_PUSH_TEMPLATE');
+});
+
+await check('the default prompt matches the Pi constant', () => {
+  // Two copies exist by necessity (JS vs Python). They must agree, or the
+  // dashboard describes a prompt the service is not running.
+  ok(typeof D.DEFAULT_LLM_PROMPT === 'string' && D.DEFAULT_LLM_PROMPT.includes('{date}'),
+     'dashboard.js must export a DEFAULT_LLM_PROMPT containing {date}');
+  const planner = readFileSync(
+    resolve(process.cwd(), '..', 'family-planner', 'src', 'firestore_config.py'),
+    'utf8');
+  const fromPy = /DEFAULT_LLM_PROMPT = \(([\s\S]*?)\)\n/.exec(planner);
+  ok(fromPy, 'could not read DEFAULT_LLM_PROMPT from firestore_config.py');
+  const pyText = fromPy[1].replace(/["\s]/g, '');
+  eq(D.DEFAULT_LLM_PROMPT.replace(/\s/g, ''), pyText,
+     'DEFAULT_LLM_PROMPT has drifted between dashboard.js and firestore_config.py');
+});
+
+// --- Disallowed sender domains ---------------------------------------------
+
+await check('there is a disallowed-domains field, wired end to end', () => {
+  ok(/id="blacklist-domains"/.test(page), 'the form needs a blacklist-domains input');
+  ok(/blacklist_domains:\s*parseTagList\(\$\('blacklist-domains'\)\.value\)/.test(page),
+     'the save payload must include blacklist_domains');
+  ok(/\$\('blacklist-domains'\)\.value = formatTagList\(data\.blacklist_domains/.test(page),
+     'loadConfig must populate the disallowed-domains field');
+  ok(/DEFAULT_LLM_PROMPT/.test(page), 'sanity: the defaults import is still present');
+});
+
+await check('the admin/read-only field list includes the new input', () => {
+  // Missing from these lists means the field stays enabled and writable for
+  // non-admins, or stays disabled for admins.
+  const mentions = (page.match(/blacklist-domains/g) || []).length;
+  ok(mentions >= 4,
+     `blacklist-domains appears ${mentions} time(s); it must be in the markup, `
+     + 'loadConfig, the save payload, and both enable/read-only loops');
+});
+
+await check('disallowed domains are validated as domains', () => {
+  eq(D.validateConfig({ llm_prompt_template: 'p', blacklist_domains: ['bad domain'] }).length, 1,
+     'a malformed domain must be rejected before it reaches the Pi');
+  eq(D.validateConfig({ llm_prompt_template: 'p', blacklist_domains: ['amazon.co.uk'] }).length, 0,
+     'a valid domain must be accepted');
+  eq(D.validateConfig({ llm_prompt_template: 'p', blacklist_keywords: ['unsubscribe now'] }).length, 0,
+     'keywords are free text and must not be domain-validated');
+});
+
+// --- Mobile layout ---------------------------------------------------------
+// Two separate overflow bugs, both reported from a phone.
+
+await check('run logs cannot overflow their card', () => {
+  // pre-wrap alone is not sufficient: the box still sizes to its longest line.
+  const runPre = /\.run pre \{([^}]*)\}/.exec(page);
+  ok(runPre, 'could not find the .run pre rule');
+  ok(/max-width:\s*100%/.test(runPre[1]),
+     '.run pre needs max-width:100% or a long log line widens the card');
+  ok(/overflow-wrap:\s*anywhere|word-break:\s*break-word/.test(runPre[1]),
+     '.run pre needs break-word/anywhere so long tokens wrap');
+  const runCard = /\.run \{([^}]*)\}/.exec(page);
+  ok(runCard && /min-width:\s*0/.test(runCard[1]),
+     '.run needs min-width:0; a grid item defaults to min-width:auto and is '
+     + 'sized by its longest child');
+});
+
+await check('the Google button is sized to its container', () => {
+  ok(!/width:\s*320\b/.test(page.replace(/\/\*[\s\S]*?\*\//g, '')),
+     'a hard-coded 320px button overflows a 360px phone');
+  ok(/getBoundingClientRect\(\)\.width/.test(page),
+     'the button width should be measured from the slot, not fixed');
+});
+
 // --- Report ---------------------------------------------------------------
 
 console.log(`\nDashboard: ${passed} passed, ${failed} failed\n`);

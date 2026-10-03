@@ -178,6 +178,20 @@ const description =
         </div>
 
         <div class="field">
+          <label for="blacklist-domains">Disallowed sender domains</label>
+          <input
+            id="blacklist-domains"
+            type="text"
+            placeholder="amazon.co.uk, steamcommunity.com"
+            autocomplete="off"
+          />
+          <p class="hint">
+            Comma-separated. Mail from these senders is always dropped, even if
+            the domain is also on the allowed list above.
+          </p>
+        </div>
+
+        <div class="field">
           <label for="blacklist">Ignored keywords</label>
           <input
             id="blacklist"
@@ -310,6 +324,11 @@ const description =
   .run {
     border: 1px solid var(--line, #dfe3e8);
     border-radius: 8px; padding: 0.75rem 0.9rem;
+    /* A grid/flex item defaults to min-width:auto, so a long unbroken token
+       (a Firestore document id, a URL in a log line) would push the card
+       wider than the viewport instead of wrapping. */
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
   .run-top { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
   .run-time { font-weight: 600; }
@@ -321,10 +340,18 @@ const description =
   .badge.WARN { background: #b26a00; }
   .badge.ERROR { background: #b3261e; }
   .run-metrics { font-size: 0.85rem; color: var(--muted, #5b6472); margin: 0.4rem 0 0; }
-  .run details { margin-top: 0.5rem; }
+  .run details { margin-top: 0.5rem; min-width: 0; }
   .run summary { cursor: pointer; font-size: 0.85rem; }
   .run pre {
-    white-space: pre-wrap; word-break: break-word;
+    /* pre-wrap alone is not enough on a narrow screen: the box still sizes to
+       its longest line, so max-width: 100% plus break-word is what actually
+       keeps the log inside the card. */
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    max-width: 100%;
+    margin: 0.5rem 0 0;
+    overflow-x: auto;
     background: #f6f7f9; padding: 0.6rem; border-radius: 6px; font-size: 0.8rem;
   }
 
@@ -362,6 +389,7 @@ const description =
     summariseRuns, formatRunId, sortRunsNewestFirst,
     parseTagList, formatTagList, renderPushTemplate, escapeHtml,
     validateConfig, deviceDocumentId, RUNS_QUERY_LIMIT,
+    DEFAULT_LLM_PROMPT,
   } from '../../lib/dashboard.js';
 
   /*
@@ -546,11 +574,16 @@ const description =
       client_id: GOOGLE_CLIENT_ID,
       callback: window.__handleGoogleId,
     });
+    // The button is 320px wide by default, which overflows a 360px phone once
+    // the page gutters and the card padding are added. Measure the slot and
+    // clamp: never wider than the container, never so narrow the label clips.
+    const available = Math.floor(slot.getBoundingClientRect().width);
+    const width = available > 0 ? Math.min(320, Math.max(200, available)) : 320;
     window.google.accounts.id.renderButton(slot, {
       // 'signin_with' renders "Sign in with Google". The previous
       // 'continue_with' said "Continue with Google", which does not match the
       // heading above it.
-      theme: 'outline', size: 'large', width: 320, text: 'signin_with',
+      theme: 'outline', size: 'large', width, text: 'signin_with',
     });
   }
 
@@ -611,7 +644,8 @@ const description =
     } else {
       note.hidden = false;
       save.hidden = true;
-      for (const id of ['llm-prompt', 'whitelist', 'blacklist', 'push-template']) {
+      for (const id of ['llm-prompt', 'whitelist', 'blacklist-domains',
+        'blacklist', 'push-template']) {
         const el = $(id);
         if (el) el.readOnly = true;
       }
@@ -619,7 +653,8 @@ const description =
   }
 
   function setFormEnabled(enabled) {
-    for (const id of ['llm-prompt', 'whitelist', 'blacklist', 'push-template']) {
+    for (const id of ['llm-prompt', 'whitelist', 'blacklist-domains',
+      'blacklist', 'push-template']) {
       const el = $(id);
       if (el) el.disabled = !enabled;
     }
@@ -702,13 +737,22 @@ const description =
     try {
       const snap = await firestoreNs.getDoc(firestoreNs.doc(db, CONFIG_DOC));
       const data = snap.exists() ? snap.data() : {};
-      $('llm-prompt').value = data.llm_prompt_template ?? '';
+      // Fall back to the service defaults rather than showing empty boxes.
+      //
+      // config/app_settings does not exist until somebody saves it, and
+      // snap.exists() is false until then. The dashboard therefore rendered four
+      // blank fields that looked broken and, because they were empty rather
+      // than greyed out, appeared to be uneditable. The Pi runs on exactly these
+      // defaults, so showing them is also the honest description of what is in
+      // force tonight.
+      $('llm-prompt').value = data.llm_prompt_template ?? DEFAULT_LLM_PROMPT;
       $('whitelist').value = formatTagList(data.whitelist_domains ?? []);
+      $('blacklist-domains').value = formatTagList(data.blacklist_domains ?? []);
       $('blacklist').value = formatTagList(data.blacklist_keywords ?? []);
-      $('push-template').value = data.push_template ?? '';
+      $('push-template').value = data.push_template ?? DEFAULT_PUSH_TEMPLATE;
       $('config-updated').textContent = data.updated_at
         ? `Last changed ${new Date(data.updated_at).toLocaleString()}`
-        : 'Using service defaults';
+        : 'Using service defaults (never saved)';
       renderPreview();
     } catch (e) {
       say($('config-errors'), `Could not load settings: ${e.message}`, 'error');
@@ -734,6 +778,7 @@ const description =
     const payload = {
       llm_prompt_template: $('llm-prompt').value,
       whitelist_domains: parseTagList($('whitelist').value),
+      blacklist_domains: parseTagList($('blacklist-domains').value),
       blacklist_keywords: parseTagList($('blacklist').value),
       push_template: $('push-template').value.trim(),
       updated_at: new Date().toISOString(),
@@ -824,6 +869,12 @@ const description =
 
       const registration = await navigator.serviceWorker.register(
         '/family-assistant/firebase-sw.js',
+        // MODULE, not classic. firebase-sw.js uses top-level `import`, which is
+        // only legal in a module worker. Registered as classic - the default -
+        // the browser throws a SyntaxError while evaluating the script and
+        // registration fails with "ServiceWorker script evaluation failed".
+        // This is why permission was granted and then subscription still died.
+        { type: 'module' },
       );
       await navigator.serviceWorker.ready;
 

@@ -16,6 +16,17 @@ export const RUNS_QUERY_LIMIT = 15;
 export const DEFAULT_PUSH_TEMPLATE = '{summary} on {date} at {time}';
 
 /**
+ * Mirrors DEFAULT_LLM_PROMPT in src/firestore_config.py.
+ *
+ * Shown in the dashboard when config/app_settings does not exist yet, so the
+ * form shows what the Pi is actually running instead of four empty boxes.
+ * Keep the two in step: the Pi reads this at 05:00 with nobody watching.
+ */
+export const DEFAULT_LLM_PROMPT =
+  'You extract calendar events from emails. Today is {date}. '
+  + 'Return strict JSON only.';
+
+/**
  * Firestore document id for a device token: a SHA-256 hex digest.
  *
  * Hashing is a privacy control. Reading the devices collection must not hand
@@ -172,6 +183,7 @@ export function validateConfig(config) {
 
   for (const [field, list] of [
     ['whitelist_domains', config.whitelist_domains],
+    ['blacklist_domains', config.blacklist_domains],
     ['blacklist_keywords', config.blacklist_keywords],
   ]) {
     if (list === undefined || list === null) continue;
@@ -179,7 +191,8 @@ export function validateConfig(config) {
       errors.push(`${field} must be a list.`);
       continue;
     }
-    if (field !== 'whitelist_domains') continue;
+    // Keywords are free text; only the two domain lists are domain-shaped.
+    if (field === 'blacklist_keywords') continue;
     for (const entry of list) {
       if (!isDomainLike(entry)) {
         errors.push(`"${entry}" is not a valid domain.`);
