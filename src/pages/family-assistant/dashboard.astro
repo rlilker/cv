@@ -144,47 +144,6 @@ const description =
         <ol class="runs" id="runs"></ol>
       </section>
 
-      <!-- What was added, and why ----------------------------------------- -->
-      <section class="card" id="decisions" aria-labelledby="decisions-heading" hidden>
-        <div class="card-head">
-          <h2 id="decisions-heading">What was added</h2>
-          <span class="stamp" id="decisions-updated"></span>
-        </div>
-
-        <p class="muted">
-          One row per email the service looked at, newest first. Marking a
-          calendar entry as incorrect removes it from the family calendar at the
-          next 05:00 sync and keeps the sender here, so the prompt and the
-          filters can be tuned against a real example.
-        </p>
-
-        <p class="notice readonly" id="decisions-readonly" role="status" hidden>
-          Marking an entry as incorrect needs a parent account. You can still
-          read this history.
-        </p>
-
-        <div class="filters" role="group" aria-label="Filter the history">
-          <button type="button" class="chip is-on" data-outcome="created">
-            Added
-          </button>
-          <button type="button" class="chip is-on" data-outcome="skipped_no_event">
-            Not events
-          </button>
-          <button type="button" class="chip is-on" data-outcome="skipped_filtered">
-            Filtered
-          </button>
-          <button type="button" class="chip is-on" data-outcome="error">
-            Failed
-          </button>
-          <button type="button" class="chip is-on" data-outcome="incorrect">
-            Marked incorrect
-          </button>
-        </div>
-
-        <p class="muted" id="decisions-empty">Nothing recorded yet.</p>
-        <ol class="decisions" id="decisions-list"></ol>
-        <p class="error" id="decisions-error" role="alert" hidden></p>
-      </section>
 
       <!-- Config editor -------------------------------------------------- -->
       <section class="card" id="config" aria-labelledby="config-heading" hidden>
@@ -383,7 +342,11 @@ const description =
   .badge.ERROR { background: #b3261e; }
   .run-metrics { font-size: 0.85rem; color: var(--muted, #5b6472); margin: 0.4rem 0 0; }
   .run details { margin-top: 0.5rem; min-width: 0; }
-  .run summary { cursor: pointer; font-size: 0.85rem; }
+  .run summary {
+    cursor: pointer; font-size: 0.85rem;
+    /* A small tappable target: the whole line opens the log. */
+    padding: 0.4rem 0; display: block;
+  }
   .run pre {
     /* pre-wrap alone is not enough on a narrow screen: the box still sizes to
        its longest line, so max-width: 100% plus break-word is what actually
@@ -396,46 +359,13 @@ const description =
     overflow-x: auto;
     background: #f6f7f9; padding: 0.6rem; border-radius: 6px; font-size: 0.8rem;
   }
+  /* Log lines are "ADDED  2026-10-03T09:00:00 - Dentist (from: ...)".
+     On a phone that is one very long line, so each entry is allowed to wrap
+     and the verb is kept on its own line by the pre's own wrapping. */
+  .run pre { line-height: 1.5; }
 
-  /* Decision history ----------------------------------------------------- */
-
-  .filters { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.75rem 0; }
-  .chip {
-    font: inherit; font-size: 0.8rem; cursor: pointer;
-    padding: 0.25rem 0.7rem; border-radius: 999px;
-    border: 1px solid var(--line, #dfe3e8);
-    background: #fff; color: var(--muted, #5b6472);
-  }
-  .chip.is-on { background: #1a1d21; border-color: #1a1d21; color: #fff; }
-
-  .decisions {
-    list-style: none; padding: 0; margin: 0;
-    display: grid; gap: 0.6rem;
-  }
-  .decision {
-    border: 1px solid var(--line, #dfe3e8);
-    border-left: 4px solid var(--line, #dfe3e8);
-    border-radius: 8px; padding: 0.7rem 0.85rem;
-    /* Same min-width:auto trap as .run: a long subject or sender must wrap
-       rather than widen the card. */
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
-  .decision.CREATED { border-left-color: #1b5e20; }
-  .decision.SKIPPED_NO_EVENT { border-left-color: #8a9099; }
-  .decision.SKIPPED_FILTERED { border-left-color: #b26a00; }
-  .decision.ERROR { border-left-color: #b3261e; }
-  .decision.INCORRECT { border-left-color: #b3261e; background: #fdf3f2; }
-
-  .decision-subject { font-weight: 600; }
-  .decision-why { font-size: 0.85rem; color: var(--muted, #5b6472); margin: 0.3rem 0 0; }
-  .decision-meta {
-    font-size: 0.78rem; color: var(--muted, #5b6472);
-    margin: 0.3rem 0 0; overflow-wrap: anywhere;
-  }
-  .decision-actions { margin-top: 0.5rem; display: flex; gap: 0.5rem; flex-wrap: wrap; }
-  .decision-actions .btn { font-size: 0.8rem; padding: 0.3rem 0.7rem; }
-  .flagged { font-size: 0.78rem; font-weight: 700; color: #b3261e; }
+  /* Summary tiles: five across is unreadable at 360px, so they reflow. */
+  .summary { grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr)); }
 
   .field { margin: 1rem 0; }
   .field label { display: block; font-weight: 600; margin-bottom: 0.3rem; }
@@ -519,7 +449,7 @@ const description =
    * These start hidden in the markup, so the page shows a sign-in card and
    * nothing else until a session exists.
    */
-  const PANEL_IDS = ['history', 'decisions', 'config', 'push'];
+  const PANEL_IDS = ['history', 'config', 'push'];
 
   /**
    * Addresses allowed to change the extraction settings.
@@ -679,9 +609,7 @@ const description =
     setFormEnabled(true);
     loadConfig();
     loadRuns();
-    loadDecisions();
     refreshPushState();
-    $('decisions-readonly').hidden = isAdmin;
     $('config-updated').textContent = `Signed in as ${user.email ?? ''}`;
   }
 
@@ -692,11 +620,8 @@ const description =
     setPanelVisible(false);
     applyAdminState();
     $('runs').innerHTML = '';
-    $('decisions-list').innerHTML = '';
-    decisionCache = [];
     $('summary').hidden = true;
     $('history-empty').hidden = true;
-    $('decisions-empty').hidden = false;
     setFormEnabled(false);
     renderGoogleButton();
   }
@@ -824,155 +749,6 @@ const description =
           + `<pre>${escapeHtml(logs.join('\n'))}</pre></details>` : ''}
       `;
       list.appendChild(li);
-    }
-  }
-
-  // --- Decision history ----------------------------------------------------
-  // One row per email, with the verdict and the reason. Bounded like the run
-  // query: an unbounded read is both a billing problem and a bulk export of the
-  // family's mail.
-
-  const DECISIONS_COLLECTION = 'decisions';
-  const DECISIONS_QUERY_LIMIT = 60;
-  let decisionCache = [];
-
-  async function loadDecisions() {
-    if (!db) return;
-    try {
-      const snapshot = await firestoreNs.getDocs(
-        firestoreNs.query(
-          firestoreNs.collection(db, DECISIONS_COLLECTION),
-          firestoreNs.orderBy('timestamp', 'desc'),
-          firestoreNs.limit(DECISIONS_QUERY_LIMIT),
-        ),
-      );
-      decisionCache = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
-      renderDecisions();
-      say($('decisions-error'), '');
-      $('decisions-error').hidden = true;
-    } catch (e) {
-      say($('decisions-error'),
-        `Could not load the history: ${e.message}`, 'error');
-      $('decisions-error').hidden = false;
-    }
-  }
-
-  /** 'incorrect' is a flag, not an outcome, so it is checked first. */
-  function decisionOutcome(record) {
-    if (record?.incorrect) return 'incorrect';
-    return String(record?.outcome ?? 'unknown');
-  }
-
-  const OUTCOME_LABELS = {
-    created: 'Added',
-    skipped_no_event: 'Not an event',
-    skipped_filtered: 'Filtered',
-    error: 'Failed',
-    incorrect: 'Marked incorrect',
-  };
-
-  function activeOutcomes() {
-    return new Set(
-      [...document.querySelectorAll('.chip.is-on')]
-        .map((c) => c.dataset.outcome),
-    );
-  }
-
-  function renderDecisions() {
-    const list = $('decisions-list');
-    list.innerHTML = '';
-    const wanted = activeOutcomes();
-    const rows = decisionCache.filter((r) => wanted.has(decisionOutcome(r)));
-
-    $('decisions-empty').hidden = rows.length > 0;
-    if (decisionCache.length && !rows.length) {
-      $('decisions-empty').textContent = 'Nothing matches these filters.';
-    } else {
-      $('decisions-empty').textContent = 'Nothing recorded yet.';
-    }
-    if (decisionCache.length) {
-      $('decisions-updated').textContent =
-        `${decisionCache.length} record${decisionCache.length === 1 ? '' : 's'}`;
-    }
-
-    for (const record of rows) {
-      const outcome = decisionOutcome(record);
-      const li = document.createElement('li');
-      li.className = `decision ${outcome.toUpperCase()}`;
-
-      // Every value is escaped: subjects and senders come from email, which an
-      // outside party can influence.
-      const when = record.timestamp
-        ? new Date(record.timestamp).toLocaleString() : '';
-      const meta = [when, record.sender, record.summary]
-        .filter(Boolean).map(escapeHtml).join(' · ');
-
-      li.innerHTML = `
-        <p class="decision-subject">${escapeHtml(record.subject || '(no subject)')}</p>
-        ${record.reason ? `<p class="decision-why">${escapeHtml(record.reason)}</p>` : ''}
-        ${meta ? `<p class="decision-meta">${meta}</p>` : ''}
-      `;
-
-      if (outcome === 'incorrect') {
-        const flagged = document.createElement('p');
-        flagged.className = 'flagged';
-        flagged.textContent = 'Marked incorrect — removed at the next 05:00 sync.';
-        li.appendChild(flagged);
-      } else if (record.outcome === 'created' && record.calendar_event_id) {
-        li.appendChild(markIncorrectControl(record));
-      }
-
-      list.appendChild(li);
-    }
-  }
-
-  function markIncorrectControl(record) {
-    const wrap = document.createElement('div');
-    wrap.className = 'decision-actions';
-
-    if (!isAdmin) {
-      const note = document.createElement('span');
-      note.className = 'hint';
-      note.textContent = 'A parent account can mark this as incorrect.';
-      wrap.appendChild(note);
-      return wrap;
-    }
-
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'btn ghost';
-    button.textContent = 'This entry is wrong';
-    button.addEventListener('click', () => flagIncorrect(record, button));
-    wrap.appendChild(button);
-    return wrap;
-  }
-
-  async function flagIncorrect(record, button) {
-    button.disabled = true;
-    try {
-      await firestoreNs.setDoc(
-        firestoreNs.doc(db, DECISIONS_COLLECTION, record.id),
-        {
-          incorrect: true,
-          marked_incorrect_at: new Date().toISOString(),
-          incorrect_note: '',
-        },
-        { merge: true },
-      );
-      // Reflect it locally rather than re-querying, so the row moves
-      // immediately even on a slow connection.
-      const local = decisionCache.find((r) => r.id === record.id);
-      if (local) local.incorrect = true;
-      renderDecisions();
-    } catch (e) {
-      button.disabled = false;
-      if (/permission|denied/i.test(e?.message ?? '')) {
-        say($('decisions-error'),
-          'Your account is not allowed to mark entries as incorrect.', 'error');
-      } else {
-        say($('decisions-error'), `Could not flag it: ${e.message}`, 'error');
-      }
-      $('decisions-error').hidden = false;
     }
   }
 
@@ -1197,18 +973,7 @@ const description =
   function wire() {
     $('save-config')?.addEventListener('click', saveConfig);
     $('enable-push')?.addEventListener('click', enablePush);
-    $('refresh')?.addEventListener('click', () => {
-    loadRuns();
-    loadDecisions();
-  });
-  // Filter chips toggle which verdicts are shown. They re-render from the cache
-  // rather than re-querying, so filtering stays instant.
-  for (const chip of document.querySelectorAll('.chip')) {
-    chip.addEventListener('click', () => {
-      chip.classList.toggle('is-on');
-      renderDecisions();
-    });
-  }
+    $('refresh')?.addEventListener('click', loadRuns);
     $('sign-out')?.addEventListener('click', async () => {
       const authNs = await firebaseAuth();
       await authNs.signOut(auth);

@@ -85,6 +85,45 @@ test.describe('service worker', () => {
     }
   });
 
+  test('the INIT handshake completes', async ({ dashboard: page }) => {
+    // The page hands the worker its Firebase config over a MessageChannel and
+    // waits for an INIT_OK reply before calling getToken(). The worker used to
+    // reply on event.source, which is null for a message delivered through a
+    // transferred port, so the acknowledgement went nowhere and every
+    // subscription ended in "The notification service worker did not start".
+    const result = await page.evaluate(async () => {
+      const reg = await navigator.serviceWorker.register(
+        '/family-assistant/firebase-sw.js', { type: 'module' });
+      await navigator.serviceWorker.ready;
+      const worker = reg.active;
+      if (!worker) return { ok: false, why: 'no active worker' };
+
+      return new Promise((resolve) => {
+        const channel = new MessageChannel();
+        const timer = setTimeout(() => {
+          channel.port1.close();
+          resolve({ ok: false, why: 'no reply within 8s' });
+        }, 8000);
+        channel.port1.onmessage = (event) => {
+          clearTimeout(timer);
+          channel.port1.close();
+          resolve({ ok: true, type: event.data?.type });
+        };
+        worker.postMessage({
+          type: 'INIT',
+          // A minimal but structurally valid config; getMessaging only needs the
+          // shape, and this test asserts the handshake, not the token.
+          config: { apiKey: 'x', projectId: 'p', appId: 'a',
+                    messagingSenderId: 's', authDomain: 'd' },
+          vapidKey: 'v',
+        }, [channel.port2]);
+      });
+    });
+
+    expect(result.ok, `worker did not acknowledge INIT: ${result.why}`).toBe(true);
+    expect(result.type).toBe('INIT_OK');
+  });
+
   test('the served worker really is a module', async ({ page, request }) => {
     // Guards the test above from passing vacuously: if the worker were rewritten
     // with importScripts(), requiring type:'module' would become wrong.

@@ -61,11 +61,21 @@ self.addEventListener('message', (event) => {
   const msg = event.data;
   if (msg?.type !== 'INIT') return;
   const ready = Boolean(initMessaging(msg.config));
-  // Reply on the source port so the page can await the handshake.
-  event.source?.postMessage({ type: 'INIT_OK', ok: ready });
   if (msg.config && msg.vapidKey) {
     self.__VAPID_KEY__ = msg.vapidKey;
   }
+  // Reply on the MessageChannel port the page transferred, NOT on
+  // event.source.
+  //
+  // The page sends worker.postMessage(msg, [port2]) and listens on port1.
+  // event.source is only set when the message came from a Client (a page
+  // calling controller.postMessage); for a message delivered through a
+  // transferred port it is null. Replying there put the acknowledgement on
+  // nobody, the page's 5s timer fired, and every subscription attempt ended in
+  // "The notification service worker did not start".
+  const port = event.ports && event.ports[0];
+  if (port) port.postMessage({ type: 'INIT_OK', ok: ready });
+  else if (event.source) event.source.postMessage({ type: 'INIT_OK', ok: ready });
 });
 
 /**
