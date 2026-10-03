@@ -671,14 +671,27 @@ await check('the config form falls back to the service defaults', () => {
      'an absent settings document must show DEFAULT_PUSH_TEMPLATE');
 });
 
+// The planner repo is a sibling checkout. It exists on a developer machine and
+// not on the CI runner, which checks out this repository alone, so these checks
+// are best-effort: they catch drift locally, and skip rather than fail when the
+// file simply is not there.
+const PLANNER = resolve(root, '..', 'family-planner');
+
+function plannerFile(...parts) {
+  try {
+    return readFileSync(resolve(PLANNER, ...parts), 'utf8');
+  } catch {
+    return null;
+  }
+}
+
 await check('the default prompt matches the Pi constant', () => {
   // Two copies exist by necessity (JS vs Python). They must agree, or the
   // dashboard describes a prompt the service is not running.
   ok(typeof D.DEFAULT_LLM_PROMPT === 'string' && D.DEFAULT_LLM_PROMPT.includes('{date}'),
      'dashboard.js must export a DEFAULT_LLM_PROMPT containing {date}');
-  const planner = readFileSync(
-    resolve(process.cwd(), '..', 'family-planner', 'src', 'firestore_config.py'),
-    'utf8');
+  const planner = plannerFile('src', 'firestore_config.py');
+  if (planner === null) return;   // not checked out here; nothing to compare
   const fromPy = /DEFAULT_LLM_PROMPT = \(([\s\S]*?)\)\n/.exec(planner);
   ok(fromPy, 'could not read DEFAULT_LLM_PROMPT from firestore_config.py');
   const pyText = fromPy[1].replace(/["\s]/g, '');
@@ -779,14 +792,13 @@ await check('marking incorrect writes only the flag', () => {
      + 'that make the flag useful');
   // The rules restrict this to those three keys. Writing more from the browser
   // would be rejected, so the payload must match.
-  const rules = readFileSync(
-    resolve(root, '..', 'family-planner', 'firebase', 'firestore.rules'), 'utf8');
+  const rules = plannerFile('firebase', 'firestore.rules');
+  if (rules === null) return;   // sibling repo not checked out; nothing to compare
   ok(/match \/decisions\/\{messageId\}/.test(rules),
      'firestore.rules must have a decisions rule or the write is denied');
   ok(/'incorrect', 'incorrect_note', 'marked_incorrect_at'/.test(rules),
      'the rules must permit exactly the keys the dashboard writes');
-  ok(/match \/decisions\/\{messageId\}/.test(rules)
-     && /allow create, delete: if false/.test(rules),
+  ok(/allow create, delete: if false/.test(rules),
      'decisions must not be creatable or deletable from the browser');
 });
 
