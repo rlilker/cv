@@ -739,6 +739,74 @@ await check('the Google button is sized to its container', () => {
      'the button width should be measured from the slot, not fixed');
 });
 
+// --- Decision history and mark-as-incorrect ------------------------------
+// Runs only ever carried counters, so "why is this on the calendar" could not
+// be answered anywhere except the Pi console at 05:00. One record per email,
+// with the verdict, the reason and the calendar event id, makes it answerable.
+
+await check('there is a decision history section', () => {
+  ok(/id="decisions-list"/.test(page), 'the page needs a list for the history');
+  ok(/id="decisions"/.test(page), 'and a panel to hold it');
+  ok(/loadDecisions\(\)/.test(page), 'it must be loaded when signed in');
+});
+
+await check('the decisions panel is hidden until sign-in', () => {
+  // Same reasoning as the other panels: the markup is public, so the gate is
+  // cosmetic, but it must still be there.
+  const section = /<section class="card" id="decisions"[^>]*>/.exec(page);
+  ok(section, 'could not find the decisions section');
+  ok(/hidden/.test(section[0]),
+     'the decisions panel must start hidden like history, config and push');
+  ok(/PANEL_IDS = \[[^\]]*'decisions'/.test(page),
+     "'decisions' must be in PANEL_IDS or it never becomes visible");
+});
+
+await check('decision reads are bounded', () => {
+  // An unbounded read is both a billing problem and a bulk export of the
+  // family's email subjects and senders.
+  ok(/DECISIONS_QUERY_LIMIT/.test(page), 'the query needs an explicit limit');
+  const m = /DECISIONS_QUERY_LIMIT = (\d+)/.exec(page);
+  ok(m && Number(m[1]) <= 200,
+     `limit is ${m?.[1]}; keep it well under an unbounded export`);
+  ok(/\.limit\(DECISIONS_QUERY_LIMIT\)/.test(page),
+     'the query must actually apply the limit');
+});
+
+await check('marking incorrect writes only the flag', () => {
+  ok(/incorrect:\s*true/.test(page), 'the write must set the incorrect flag');
+  ok(/\{ merge: true \}/.test(page),
+     'the write must merge; overwriting would discard the sender and subject '
+     + 'that make the flag useful');
+  // The rules restrict this to those three keys. Writing more from the browser
+  // would be rejected, so the payload must match.
+  const rules = readFileSync(
+    resolve(root, '..', 'family-planner', 'firebase', 'firestore.rules'), 'utf8');
+  ok(/match \/decisions\/\{messageId\}/.test(rules),
+     'firestore.rules must have a decisions rule or the write is denied');
+  ok(/'incorrect', 'incorrect_note', 'marked_incorrect_at'/.test(rules),
+     'the rules must permit exactly the keys the dashboard writes');
+  ok(/match \/decisions\/\{messageId\}/.test(rules)
+     && /allow create, delete: if false/.test(rules),
+     'decisions must not be creatable or deletable from the browser');
+});
+
+await check('decision rows escape email-derived text', () => {
+  // Subjects and senders come from email, which an outside party controls.
+  const block = page.slice(page.indexOf('function renderDecisions'));
+  ok(/escapeHtml\(record\.subject/.test(block),
+     'the subject must be escaped');
+  ok(/\.map\(escapeHtml\)/.test(block),
+     'sender/summary must be escaped');
+});
+
+await check('the incorrect flag is only offered to admins', () => {
+  const block = page.slice(page.indexOf('function markIncorrectControl'));
+  ok(/if \(!isAdmin\)/.test(block),
+     'the mark-incorrect control must check isAdmin');
+  ok(/permission|denied/i.test(page),
+     'a rules rejection must be reported plainly, not swallowed');
+});
+
 // --- Report ---------------------------------------------------------------
 
 console.log(`\nDashboard: ${passed} passed, ${failed} failed\n`);
