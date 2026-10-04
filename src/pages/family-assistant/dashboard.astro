@@ -1283,7 +1283,7 @@ async function registerWorker() {
    * Deferring to the worker keeps one code path for displaying notifications,
    * so a foreground and a background push cannot drift apart.
    */
-  function handleForegroundMessage(payload) {
+  async function handleForegroundMessage(payload) {
     const n = payload?.notification ?? {};
     const title = n.title || 'Family Assistant';
     const body = n.body || '';
@@ -1297,19 +1297,34 @@ async function registerWorker() {
     // makes the notification appear.
     if (typeof fromData.action === 'string' || fromData.type) refreshRunsSoon();
 
-    const worker = navigator.serviceWorker?.controller;
-    if (worker) {
-      worker.postMessage({ type: 'SHOW_LOCAL', title, body: text });
-      return;
-    }
-    // No controlling worker: fall back to the page's own API rather than
-    // dropping the notification.
+    // Foreground display goes through the REGISTRATION directly, not through a
+    // message to the worker. Two reasons, both learned the hard way:
+    //
+    //  - `new Notification()` is not supported from a page in Chrome for
+    //    Android. It does not throw; it does nothing.
+    //  - Posting to the worker means depending on the worker being CURRENT.
+    //    After an update, navigator.serviceWorker.controller is still the
+    //    previous worker until the page reloads, so a foreground push could be
+    //    handled by code that predates SHOW_LOCAL and vanish silently.
+    //
+    // ServiceWorkerRegistration.showNotification is the supported page-side API
+    // and has neither problem.
     try {
+      const reg = await navigator.serviceWorker?.getRegistration();
+      if (reg) {
+        await reg.showNotification(title, {
+          body: text,
+          tag: 'family-assistant-live',
+          data: { url: '/family-assistant/dashboard' },
+        });
+        return;
+      }
       // eslint-disable-next-line no-new
       new Notification(title, { body: text, tag: 'family-assistant-live' });
-    } catch {
-      // Permission revoked mid-session, or unsupported. Nothing useful to say
-      // here; the run tables below still refresh.
+    } catch (e) {
+      // Nothing useful to say to the user here - a missed refresh is harmless.
+      // Logged so a future report of "nothing happened" has something to read.
+      console.warn('[family-assistant] could not display a notification:', e);
     }
   }
 
@@ -1336,6 +1351,41 @@ async function registerWorker() {
     }
   }
 
+  /**
+   * Ask a worker to display a notification and wait for it to say what happened.
+   *
+   * Resolves to a report string. Resolves even on failure: the whole point is to
+   * tell the user WHICH half is broken, so a report that only appears on success
+   * is useless.
+   */
+  function askWorkerToShow(registration, title, body, timeoutMs = 6000) {
+    const worker = registration.active || navigator.serviceWorker.controller;
+    if (!worker) return Promise.resolve('No active notification worker on this device.');
+
+    return new Promise((resolve) => {
+      const channel = new MessageChannel();
+      const timer = setTimeout(() => {
+        channel.port1.close();
+        // A worker that never answers is almost always a stale one: it was
+        // installed before SHOW_LOCAL existed and ignores the message.
+        resolve('The notification worker did not answer. It is probably an old '
+          + 'version - close every tab for this site, reopen the dashboard, and '
+          + 'try again.');
+      }, timeoutMs);
+      channel.port1.onmessage = (event) => {
+        clearTimeout(timer);
+        channel.port1.close();
+        const reply = event.data ?? {};
+        resolve(reply.ok
+          ? 'The worker asked the browser to display a notification. If nothing '
+            + 'appears, the device is blocking notifications - check Android '
+            + 'Settings > Apps > Chrome > Notifications.'
+          : `The browser refused to display it: ${reply.error}`);
+      };
+      worker.postMessage({ type: 'SHOW_LOCAL', title, body }, [channel.port2]);
+    });
+  }
+
   async function showLocalNotification() {
     const node = $('local-push-state');
     const button = $('local-push');
@@ -1356,18 +1406,27 @@ async function registerWorker() {
     button.disabled = true;
     try {
       const registration = await registerWorker();
-      const worker = registration.active || navigator.serviceWorker.controller;
-      if (!worker) {
-        say(node, 'No active notification worker on this device.', 'error');
-        return;
+      const report = await askWorkerToShow(
+        registration, 'Family Assistant',
+        'Local test - this device can show notifications.');
+      say(node, report, report.includes('refused') || report.includes('did not answer')
+        ? 'error' : '');
+      // If the worker path failed, try the page's own registration API. Note:
+      // `new Notification()` is not an option - Chrome for Android does not
+      // support constructing one from a page, and it fails silently.
+      if (report.includes('refused') || report.includes('did not answer')) {
+        try {
+          await registration.showNotification('Family Assistant', {
+            body: 'Local test via the page, not the worker.',
+            tag: 'family-assistant-local-direct',
+          });
+          say(node, `${report} A second attempt through the page's own `
+            + 'registration API was accepted.', '');
+        } catch (e) {
+          say(node, `${report} The page's own API also failed: ${e.message}`,
+            'error');
+        }
       }
-      worker.postMessage({
-        type: 'SHOW_LOCAL',
-        title: 'Family Assistant',
-        body: 'Local test - this device can show notifications.',
-      });
-      say(node, 'Asked the worker to display a notification. It should appear '
-        + 'within a second or two, even with this page in the background.');
     } catch (e) {
       say(node, `Could not reach the notification worker: ${e.message}`, 'error');
     } finally {

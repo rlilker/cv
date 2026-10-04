@@ -63,12 +63,31 @@ self.addEventListener('message', (event) => {
   // only means Google accepted the message; it says nothing about whether the
   // browser displayed it. This proves the device half on its own, so a missing
   // push can be pinned on the device or on delivery rather than guessed at.
+  //
+  // The reply is the whole point. Without it a stale worker (which does not know
+  // this message type) and a browser that refuses to display are indistinguishable
+  // from the page: both look like silence. The ack distinguishes "the worker
+  // never answered" from "showNotification rejected", which are different bugs
+  // in different places.
   if (msg?.type === 'SHOW_LOCAL') {
-    event.waitUntil(showNotification(
-      msg.title || 'Family Assistant',
-      { body: msg.body || 'Local test - this device can show notifications.',
-        tag: 'family-assistant-local', data: { url: '/family-assistant/dashboard' } },
-    ));
+    const port = event.ports && event.ports[0];
+    const reply = (payload) => { if (port) port.postMessage(payload); };
+    event.waitUntil(
+      Promise.resolve(showNotification(
+        msg.title || 'Family Assistant',
+        {
+          body: msg.body || 'Local test - this device can show notifications.',
+          tag: 'family-assistant-local',
+          data: { url: '/family-assistant/dashboard' },
+        },
+      )).then(
+        () => reply({ ok: true }),
+        (err) => reply({
+          ok: false,
+          error: (err && err.name ? err.name + ': ' : '') + String(err && err.message || err),
+        }),
+      ),
+    );
     return;
   }
   if (msg?.type !== 'INIT') return;
