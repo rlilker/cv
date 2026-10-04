@@ -149,3 +149,75 @@ test.describe('local notification test', () => {
         .toMatch(/showNotification\(/);
     });
 });
+
+test.describe('foreground pushes', () => {
+  // The reported symptom: press "Send a test notification" with the dashboard
+  // open, the Pi reports one device notified, and nothing appears. With a
+  // controlling service worker, Firebase hands the push to the PAGE through
+  // onMessage and does not display it; the worker's push listener does not run
+  // either. Every layer reported success and the user saw silence.
+
+  test('a push arriving while the page is open displays a notification',
+    async ({ browser, baseURL }) => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      await stubFirebase(page, {});
+      await page.addInitScript(() => {
+        Object.defineProperty(Notification, 'permission', { get: () => 'granted' });
+      });
+      // Capture what the page asks to be displayed.
+      await page.addInitScript(() => {
+        window.__shown = [];
+        class FakeNotification extends EventTarget {
+          constructor(title, options) {
+            super();
+            this.title = title;
+            this.options = options;
+            window.__shown.push({ title, body: options?.body ?? '' });
+          }
+        }
+        Object.defineProperty(window, 'Notification', {
+          value: FakeNotification,
+          configurable: true,
+        });
+        Object.defineProperty(window.Notification, 'permission', {
+          get: () => 'granted',
+        });
+      });
+      await page.route('**/firebase-messaging.js', (r) => r.fulfill({
+        contentType: 'text/javascript',
+        body: `
+          export function isSupported(){return true;}
+          export function getMessaging(){return {__m:true};}
+          export async function getToken(){return 'tok';}
+          window.__deliverForeground = null;
+          export function onMessage(messaging, handler){
+            window.__deliverForeground = handler;
+          }`,
+      }));
+      await page.goto(`${baseURL}/family-assistant/dashboard`);
+      await signedIn(page);
+
+      const wired = await page.evaluate(() => typeof window.__deliverForeground);
+      expect(wired, 'the page must subscribe to foreground messages')
+        .toBe('function');
+
+      // Now deliver what FCM would deliver while this tab is in front.
+      const shown = await page.evaluate(() => {
+        window.__deliverForeground({
+          notification: {
+            title: 'Family Assistant',
+            body: 'Test notification - push is working.',
+          },
+          data: { type: 'test', action: 'test' },
+        });
+        return window.__shown;
+      });
+
+      expect(shown.length, 'nothing was displayed for a foreground push')
+        .toBeGreaterThan(0);
+      expect(shown[0].title).toBe('Family Assistant');
+      expect(shown[0].body).toContain('push is working');
+      await ctx.close();
+    });
+});

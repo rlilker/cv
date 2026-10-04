@@ -580,16 +580,21 @@ const description =
     db = fs.getFirestore(app);
 
     loadGoogleIdentity();
-    authNs.onAuthStateChanged(auth, (user) => {
-      if (user) onSignedIn(user);
-      else onSignedOut();
-    });
 
+    // Messaging FIRST. onSignedIn() wires the foreground push listener and needs
+    // `messaging` to exist; registering the auth listener first left it racing
+    // the assignment below, so a fast sign-in could subscribe to nothing and
+    // every foreground push was silently dropped.
     try {
       messaging = (await fcm.isSupported()) ? fcm.getMessaging(app) : null;
     } catch {
       messaging = null;
     }
+
+    authNs.onAuthStateChanged(auth, (user) => {
+      if (user) onSignedIn(user);
+      else onSignedOut();
+    });
   }
 
   // --- Sign-in (Task 3) --------------------------------------------------
@@ -682,6 +687,11 @@ const description =
     loadConfig();
     loadRuns();
     refreshPushState();
+    // A push that lands while this tab is open is delivered to the PAGE, not
+    // the service worker, and the SDK does not display it for you. Without this
+    // the notification silently disappears whenever the dashboard happens to
+    // be on screen - including when you are pressing the test button.
+    listenForForegroundMessages();
     $('config-updated').textContent = `Signed in as ${user.email ?? ''}`;
   }
 
@@ -1260,6 +1270,72 @@ async function registerWorker() {
    * from the equation: if it appears, the device is healthy and delivery is the
    * problem; if it does not, the device is blocking notifications.
    */
+  /**
+   * Display a notification that arrived while this page is in the foreground.
+   *
+   * This is why "the Pi said it sent to 1 device" could show nothing: with the
+   * dashboard open and controlling the worker, the Firebase SDK delivers the
+   * push to the PAGE via onMessage and does NOT auto-display it. The
+   * service worker's push listener does not run in that case either. So a user
+   * who pressed the test button with the page open - which is exactly what one
+   * would do - got silence, while every part of the system reported success.
+   *
+   * Deferring to the worker keeps one code path for displaying notifications,
+   * so a foreground and a background push cannot drift apart.
+   */
+  function handleForegroundMessage(payload) {
+    const n = payload?.notification ?? {};
+    const title = n.title || 'Family Assistant';
+    const body = n.body || '';
+    // A data-only test push carries the payload under `data`; when there is a
+    // `notification` block there may be no data at all, so default to {} rather
+    // than null and never read through it unguarded.
+    const fromData = payload?.data ?? {};
+    const text = body || fromData.body || 'The family calendar has been updated.';
+
+    // A refresh is useful when the tab is open anyway, but it must not be what
+    // makes the notification appear.
+    if (typeof fromData.action === 'string' || fromData.type) refreshRunsSoon();
+
+    const worker = navigator.serviceWorker?.controller;
+    if (worker) {
+      worker.postMessage({ type: 'SHOW_LOCAL', title, body: text });
+      return;
+    }
+    // No controlling worker: fall back to the page's own API rather than
+    // dropping the notification.
+    try {
+      // eslint-disable-next-line no-new
+      new Notification(title, { body: text, tag: 'family-assistant-live' });
+    } catch {
+      // Permission revoked mid-session, or unsupported. Nothing useful to say
+      // here; the run tables below still refresh.
+    }
+  }
+
+  /** Debounced refresh so a burst of pushes does not cause a burst of reads. */
+  function refreshRunsSoon() {
+    clearTimeout(refreshRunsSoon._timer);
+    refreshRunsSoon._timer = setTimeout(() => {
+      loadRuns().catch(() => {});
+    }, 1500);
+  }
+
+  /** Wire the foreground listener. Idempotent, so a re-sign-in cannot double it. */
+  async function listenForForegroundMessages() {
+    if (!messaging) return;
+    if (listenForForegroundMessages._done) return;
+    listenForForegroundMessages._done = true;
+    try {
+      const fcm = await messagingSdk();
+      if (typeof fcm.onMessage !== 'function') return;
+      fcm.onMessage(messaging, handleForegroundMessage);
+    } catch {
+      // Not fatal: background pushes still work through the service worker.
+      listenForForegroundMessages._done = false;
+    }
+  }
+
   async function showLocalNotification() {
     const node = $('local-push-state');
     const button = $('local-push');
