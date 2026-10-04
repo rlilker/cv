@@ -45,16 +45,14 @@ function initMessaging(config) {
 }
 
 function attachBackgroundHandler() {
-  // onBackgroundMessage is the service-worker-side counterpart to the page's
-  // onMessage. It only fires while no client is controlling the worker, which
-  // is exactly the case where nothing else would display the payload.
-  onBackgroundMessage(messaging, (payload) => {
-    const n = payload?.notification ?? {};
-    showNotification(n.title ?? 'Family Assistant', {
-      body: n.body ?? '',
-      data: payload?.data ?? {},
-    });
-  });
+  // onBackgroundMessage only fires for DATA messages while no client controls
+  // the worker. It deliberately does NOT display anything: the push listener
+  // below already displays every push, and displaying in both places is how a
+  // notification ends up on screen twice.
+  //
+  // Keeping the registration is still useful - it is what makes the SDK install
+  // its own push plumbing - so this only ever records that it happened.
+  onBackgroundMessage(messaging, () => {});
 }
 
 self.addEventListener('message', (event) => {
@@ -125,8 +123,40 @@ function showNotification(title, options = {}) {
   });
 }
 
-// Background pushes. When the payload carries a `notification` block the browser
-// displays it itself; handling it here as well would show it twice.
+/**
+ * Display one notification, replacing any earlier one with the same tag.
+ *
+ * Closing what is already there is what keeps this safe to run unconditionally:
+ * a second push replaces the first instead of stacking, and if anything else
+ * already displayed this payload under the same tag it is collapsed into one
+ * rather than shown twice.
+ */
+async function showOnce(title, body, data) {
+  const tag = 'family-assistant';
+  try {
+    const existing = await self.registration.getNotifications({ tag });
+    for (const stale of existing) stale.close();
+  } catch {
+    // getNotifications is unavailable in some browsers; the tag alone still
+    // replaces, it just cannot clear a stale entry first.
+  }
+  return showNotification(title, { body, data: data || {}, tag });
+}
+
+/**
+ * Background pushes.
+ *
+ * This handler used to `return` early when the payload carried a `notification`
+ * block, on the assumption that the browser displays those itself. It does not,
+ * not while a service worker has a `push` listener registered: the payload is
+ * handed to this function and nothing else puts it on screen. That assumption
+ * is why Firebase could report "1 of 1 devices notified" and the phone showed
+ * nothing, while a notification displayed from the same worker on demand worked
+ * perfectly.
+ *
+ * So every push is displayed here, explicitly. Nothing is left to the browser's
+ * implicit behaviour.
+ */
 self.addEventListener('push', (event) => {
   let payload = {};
   try {
@@ -134,8 +164,13 @@ self.addEventListener('push', (event) => {
   } catch {
     payload = {};
   }
-  if (payload?.notification) return;
-  showNotification(payload.title, { body: payload.body, data: payload.data });
+  // A push with no JSON body at all still deserves to say something.
+  const notification = payload?.notification ?? {};
+  const data = payload?.data ?? {};
+  const title = notification.title || data.title || 'Family Assistant';
+  const body = notification.body || data.body
+    || 'The family calendar has been updated.';
+  event.waitUntil(showOnce(title, body, data));
 });
 
 self.addEventListener('notificationclick', (event) => {

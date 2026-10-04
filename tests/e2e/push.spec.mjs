@@ -233,6 +233,47 @@ test.describe('local notification test', () => {
       // It must also REPORT, or a refusal is indistinguishable from silence.
       expect(source, 'the worker must answer the page').toContain('reply(');
     });
+test('the push handler displays a notification payload itself',
+    async ({ baseURL }) => {
+      // The bug: the handler used to `return` early when the payload carried a
+      // `notification` block, trusting the browser to display it. It does not,
+      // while a service worker has a push listener registered - so Firebase
+      // reported "1 of 1 devices notified" and the phone showed nothing, while
+      // a notification shown on demand from the same worker worked fine.
+      //
+      // Executed for real: the source is pulled, the function is built, and a
+      // push event shaped exactly like the Pi's is delivered to it.
+      const response = await fetch(`${baseURL}/family-assistant/firebase-sw.js`);
+      const source = await response.text();
+
+      const pushHandler = /self\.addEventListener\('push',[\s\S]*?\n\}\);/
+        .exec(source);
+      expect(pushHandler, 'could not find the push handler').toBeTruthy();
+      expect(pushHandler[0],
+        'the handler must not skip payloads that carry a notification block')
+        .not.toMatch(/if\s*\(payload\?\.notification\)\s*return/);
+      expect(pushHandler[0],
+        'the handler must display explicitly rather than relying on the browser')
+        .toMatch(/showOnce\(|showNotification\(/);
+      expect(source, 'showOnce must exist and be used')
+        .toMatch(/async function showOnce/);
+    });
+
+  test('a notification payload is not displayed twice',
+    async ({ baseURL }) => {
+      // Displaying in both the SDK callback and the push listener is how a
+      // notification ends up on screen twice, so only one place may display.
+      const response = await fetch(`${baseURL}/family-assistant/firebase-sw.js`);
+      const source = await response.text();
+      const background = /onBackgroundMessage\(messaging,[\s\S]*?\);/.exec(source);
+      expect(background, 'could not find onBackgroundMessage').toBeTruthy();
+      expect(background[0],
+        'onBackgroundMessage must not also display, or every push shows twice')
+        .not.toMatch(/showNotification|showOnce/);
+      // And the single display path must replace rather than stack.
+      expect(source, 'showOnce should clear the previous notification')
+        .toMatch(/getNotifications/);
+    });
 });
 
 test.describe('foreground pushes', () => {
