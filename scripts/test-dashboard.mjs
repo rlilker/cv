@@ -731,20 +731,6 @@ await check('disallowed domains are validated as domains', () => {
 // --- Mobile layout ---------------------------------------------------------
 // Two separate overflow bugs, both reported from a phone.
 
-await check('run logs cannot overflow their card', () => {
-  // pre-wrap alone is not sufficient: the box still sizes to its longest line.
-  const runPre = /\.run pre \{([^}]*)\}/.exec(page);
-  ok(runPre, 'could not find the .run pre rule');
-  ok(/max-width:\s*100%/.test(runPre[1]),
-     '.run pre needs max-width:100% or a long log line widens the card');
-  ok(/overflow-wrap:\s*anywhere|word-break:\s*break-word/.test(runPre[1]),
-     '.run pre needs break-word/anywhere so long tokens wrap');
-  const runCard = /\.run \{([^}]*)\}/.exec(page);
-  ok(runCard && /min-width:\s*0/.test(runCard[1]),
-     '.run needs min-width:0; a grid item defaults to min-width:auto and is '
-     + 'sized by its longest child');
-});
-
 await check('the Google button is sized to its container', () => {
   ok(!/width:\s*320\b/.test(page.replace(/\/\*[\s\S]*?\*\//g, '')),
      'a hard-coded 320px button overflows a 360px phone');
@@ -758,11 +744,38 @@ await check('run logs are shown, not just counters', () => {
   // rendered, or improving the Pi's logging achieves nothing visible.
   const block = page.slice(page.indexOf('function renderRuns'));
   ok(/run\.logs/.test(block), 'renderRuns must read run.logs');
-  ok(/<pre>/.test(block), 'the log lines must be rendered');
-  ok(/escapeHtml\(logs\.join/.test(block),
-     'log lines must be escaped: they contain email subjects, which an outside '
-     + 'party can influence');
+  ok(/createElement\('pre'\)/.test(block), 'the log lines must be rendered');
+  // textContent, not innerHTML: log lines carry email subjects, which an
+  // outside party can influence.
+  ok(/pre\.textContent = logs\.join/.test(block),
+    'log lines must be set as text, never interpolated into innerHTML');
   ok(/details/.test(block), 'the log must stay collapsed by default');
+});
+
+await check('run history is grouped into a table per day', () => {
+  // A flat list of 15 runs across 15 dates scrolled off the side of a phone.
+  ok(/function groupRunsByDay/.test(page), 'runs must be grouped by day');
+  ok(/RUNS_PAGE_DAYS = 7/.test(page), 'the page size must be 7 days');
+  const block = page.slice(page.indexOf('function renderRuns'));
+  ok(/createElement\('table'\)/.test(block), 'each day must render a table');
+  ok(/day-heading/.test(block), 'each table needs a dated heading');
+  // Pagination must page over DAYS, not runs, or "7 days" means nothing.
+  ok(/Math\.ceil\(days\.length \/ RUNS_PAGE_DAYS\)/.test(block),
+    'the page count must be computed from days, not from the run count');
+  ok(/id="runs-pager"/.test(page), 'there must be a pager element');
+});
+
+await check('the run table cannot overflow the viewport', () => {
+  // table-layout: fixed is what stops a long log line stretching a column.
+  const m = /\.run-table \{([^}]*)\}/.exec(page);
+  ok(m, 'could not find the .run-table rule');
+  ok(/table-layout:\s*fixed/.test(m[1]),
+    'the table needs table-layout:fixed or a long line widens it');
+  const pre = /\.run-table pre \{([^}]*)\}/.exec(page);
+  ok(pre, 'could not find the .run-table pre rule');
+  ok(/overflow-wrap:\s*anywhere|word-break:\s*break-word/.test(pre[1]),
+     'log lines must be allowed to wrap');
+  ok(/max-width:\s*100%/.test(pre[1]), 'and must not exceed the cell');
 });
 
 await check('the obsolete decision section is gone', () => {

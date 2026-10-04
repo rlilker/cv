@@ -8,7 +8,7 @@
  *
  * Runs in the mobile project only; the desktop project skips it.
  */
-import { test, expect, signedIn } from './fixtures/firebase-stub.mjs';
+import { test, expect, signedIn, stubFirebase } from './fixtures/firebase-stub.mjs';
 
 test.describe('mobile layout', () => {
   test.skip(({ isMobile }) => !isMobile, 'layout regressions are phone-specific');
@@ -44,7 +44,15 @@ test.describe('mobile layout', () => {
     ).toBeLessThanOrEqual(report.clientWidth + 1);
   });
 
-  test('the sign-in button fits inside its container', async ({ dashboard: page }) => {
+  test('the sign-in button fits inside its container', async ({ browser, baseURL }) => {
+    // Signed out, because that is the only state in which the button is shown.
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    await stubFirebase(page, { neverSignedIn: true });
+    await page.goto(`${baseURL}/family-assistant/dashboard`);
+    await expect(page.locator('#signin-slot iframe, #signin-slot div'))
+      .toHaveCount(1, { timeout: 10_000 });
+
     // It was a hard-coded 320px, which does not fit a 360px phone once the
     // page gutters and card padding are added.
     const fits = await page.evaluate(() => {
@@ -56,6 +64,8 @@ test.describe('mobile layout', () => {
       return {
         slotLeft: s.left, slotRight: s.right,
         btnLeft: b.left, btnRight: b.right,
+        scroll: document.documentElement.scrollWidth,
+        client: document.documentElement.clientWidth,
       };
     });
 
@@ -64,6 +74,9 @@ test.describe('mobile layout', () => {
       .toBeLessThanOrEqual(fits.slotRight + 1);
     expect(fits.btnLeft, 'button starts left of its slot')
       .toBeGreaterThanOrEqual(fits.slotLeft - 1);
+    expect(fits.scroll, 'the page scrolls sideways')
+      .toBeLessThanOrEqual(fits.client + 1);
+    await ctx.close();
   });
 
   test('the settings fields are usable at phone width', async ({ dashboard: page }) => {

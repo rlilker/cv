@@ -41,6 +41,12 @@ export const test = base.extend({
  * account, a config document that exists - without going through the fixture.
  */
 export async function stubFirebase(page, opts = {}) {
+  // Before any navigation: an uncaught error during boot() leaves the page
+  // un-started, and signedIn() reports the real message instead of a timeout.
+  page.on('pageerror', (e) => {
+    page.__bootError = page.__bootError ?? e.message;
+  });
+
   const state = {
     user: {
       email: opts.email ?? TEST_USER.email,
@@ -54,7 +60,19 @@ export async function stubFirebase(page, opts = {}) {
     runs: opts.runs ?? [],
     /** Everything the page wrote, so a test can assert on it. */
     writes: [],
+    // The page reads auth.currentUser in several places (the test-notification
+    // button checks it before queuing). A bare {} made those paths see null and
+    // report "Sign in first" on a page that was plainly signed in.
+    auth: { currentUser: null },
+    // Most tests want a signed-in page. The few that check the signed-out view
+    // (the Google button, the hidden panels) set this, because a stub that
+    // signed in immediately made those pages render their signed-in state.
+    neverSignedIn: opts.neverSignedIn ?? false,
+    // Lets a test dictate what the Pi's answer to a test-notification request
+    // looks like, without installing a second route for the same URL.
+    testMessageResult: opts.testMessageResult ?? null,
   };
+  if (!state.neverSignedIn) state.auth.currentUser = state.user;
 
   // --- Google Identity Services -----------------------------------------
     await page.route('https://accounts.google.com/**', (route) =>
@@ -87,12 +105,13 @@ export async function stubFirebase(page, opts = {}) {
           // Firebase fires with null first, then the user. Reproducing that
           // order matters: the bug this catches was an ordering bug.
           cb(null);
+          if (state.neverSignedIn) return;
           queueMicrotask(() => cb(state.user));
         }
         export const GoogleAuthProvider = function () {};
         GoogleAuthProvider.credential = () => ({ idToken: 'stub' });
-        export const getAuth = () => ({});
-        export const signInWithCredential = async () => state.user;
+        export function getAuth(app) { return state.auth; }
+        export async function signInWithCredential(auth, cred) { return state.user; }
         export const connectAuthEmulator = noop;
 
         export function doc(db, path) {
@@ -113,7 +132,18 @@ export async function stubFirebase(page, opts = {}) {
         export function limit(n) { return { __limit: n }; }
         export function where() { return {}; }
 
+        // getDoc is where the test-notification outcome comes back, so a test that
+        // needs a specific answer sets state.testMessageResult rather than
+        // installing a second route: two routes for the same URL resolve in
+        // registration order, and whichever wins silently breaks boot().
         export async function getDoc(ref) {
+          if (ref.__path?.[0] === 'test_messages'
+              && state.testMessageResult) {
+            return {
+              exists: () => true,
+              data: () => state.testMessageResult,
+            };
+          }
           if (ref.__path && ref.__path[0] === 'config') {
             return { exists: () => state.configExists, data: () => state.config };
           }
@@ -147,11 +177,32 @@ export async function stubFirebase(page, opts = {}) {
 
 /** Wait until the page has finished booting (auth callback has fired). */
 export async function signedIn(page, email = TEST_USER.email) {
+  // A boot() that threw leaves the page permanently un-started, and the symptom
+  // is this timeout naming the wrong problem. Surface the real error instead.
+  const crashed = await page.evaluate(() => window.__bootError ?? null);
+  if (crashed) {
+    throw new Error(
+      `the page failed to start: ${crashed}\n`
+      + 'A stubbed module is probably missing an export that boot() calls.',
+    );
+  }
   await page.waitForFunction(
     (e) => document.getElementById('signed-in')?.hidden === false
       && document.getElementById('user-email')?.textContent === e,
     email,
   );
+}
+
+/**
+ * Record any uncaught error so signedIn() can name it.
+ *
+ * Without this a broken stub shows up as an opaque 30s timeout, which sent me
+ * looking at the wrong layer twice.
+ */
+export async function captureBootErrors(page) {
+  page.on('pageerror', (e) => {
+    page.__bootError = page.__bootError ?? e.message;
+  });
 }
 
 /** Everything the page has written to Firestore, for assertions. */

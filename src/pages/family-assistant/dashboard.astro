@@ -142,6 +142,8 @@ const description =
         </dl>
 
         <ol class="runs" id="runs"></ol>
+        <div class="pager" id="runs-pager" hidden></div>
+        <p class="stamp" id="runs-page-label"></p>
       </section>
 
 
@@ -243,13 +245,42 @@ const description =
           On iPhone, add this site to the Home Screen first — iOS only delivers
           Web Push to a Home Screen app.
         </p>
+        <p class="hint" id="push-blocked-note" hidden>
+          If the button appears to do nothing, your browser is blocking
+          notifications for this site. Open the padlock or site-settings icon in
+          the address bar, allow notifications, then reload this page.
+        </p>
+
+        <hr class="rule" />
+
+        <h3>Test this notification path</h3>
+        <p class="muted">
+          Asks the Pi to send a push to every subscribed device. The Pi picks
+          this up on its next check (within a minute) and the result appears
+          here, so you can tell a working subscription from one that only looks
+          subscribed.
+        </p>
+        <button type="button" class="btn" id="test-push">
+          Send a test notification
+        </button>
+        <p id="test-push-state" class="muted"></p>
       </section>
 
       <Footer />
     </article>
   </main>
 </BaseLayout>
-<style>
+<style is:global>
+  /* Global, not scoped. Astro scopes a rule to [data-astro-cid-...] and adds
+     * that attribute only to markup IT renders; everything below is built at
+     * runtime with createElement, so a scoped rule never matched it. The symptom
+     * was a log block inside the run table keeping white-space:pre and growing
+     * the table to 1578px on a 1280px viewport, because the wrapping rules
+     * simply were not being applied.
+     *
+     * The selectors are all specific to this page (.dash, #runs, .card) so they
+     * cannot leak into the rest of the site.
+     */
   /*
    * The page container, matching src/pages/index.astro so the dashboard lines
    * up with the rest of the site instead of sitting in a narrower column.
@@ -311,7 +342,9 @@ const description =
   }
 
   .summary {
-    display: grid; grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+    display: grid;
+    /* Five tiles across at 360px leaves ~60px each, which is unreadable. */
+    grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
     gap: 0.75rem; margin: 1rem 0;
   }
   .summary div {
@@ -321,51 +354,74 @@ const description =
   .summary dt { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted, #5b6472); }
   .summary dd { margin: 0.2rem 0 0; font-size: 1.4rem; font-weight: 700; }
 
-  .runs { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.6rem; }
-  .run {
-    border: 1px solid var(--line, #dfe3e8);
-    border-radius: 8px; padding: 0.75rem 0.9rem;
-    /* A grid/flex item defaults to min-width:auto, so a long unbroken token
-       (a Firestore document id, a URL in a log line) would push the card
-       wider than the viewport instead of wrapping. */
-    min-width: 0;
-    overflow-wrap: anywhere;
+  /* Run history, one table per day. A flat list of 15 runs across 15 dates was
+     unreadable on a phone; a dated table with fixed columns is not. */
+  .runs { list-style: none; padding: 0; margin: 0; }
+  .day { margin: 1.1rem 0; min-width: 0; }
+  .day-heading {
+    font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--muted, #5b6472); margin: 0 0 0.35rem;
   }
-  .run-top { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
-  .run-time { font-weight: 600; }
+  .run-table {
+    /* table-layout:fixed stops a long line stretching a COLUMN, but on its own
+       it does not stop the log block inside the cell forcing the table wider:
+       a single unbreakable token still sets a minimum width. The cell and the
+       block inside it both need their width constrained. */
+    table-layout: fixed;
+    width: 100%;
+    max-width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+  }
+  .run-table th, .run-table td {
+    text-align: left; padding: 0.4rem 0.35rem;
+    border-bottom: 1px solid var(--line, #dfe3e8);
+    vertical-align: top;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  /* A details element is a block box that still sizes to its longest child, so
+     table-layout:fixed and overflow-wrap on the cell are not enough on their
+     own: the table grew to 1402px on a 1280px viewport, because `width:100%`
+     on the log block resolved against a cell whose width had not been fixed
+     yet. The detail cell therefore needs an explicit share of the table, and
+     the block inside it is sized against THAT rather than the content. */
+  .run-table .cell-detail { width: 42%; max-width: 42%; }
+  .run-table details {
+    display: block; max-width: 100%; min-width: 0;
+  }
+  .run-table pre {
+    white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word;
+    /* No width:100%. A percentage against an unresolved cell is what caused
+       the overflow; letting the pre fill the block it is in is what works. */
+    max-width: 100%;
+    margin: 0.4rem 0 0; line-height: 1.45;
+    background: #f6f7f9; padding: 0.5rem; border-radius: 6px; font-size: 0.75rem;
+  }
+  .run-table th {
+    font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--muted, #5b6472); font-weight: 600;
+  }
+  .run-table .cell-time { width: 4.5rem; white-space: nowrap; }
+  .run-table .cell-num { width: 3.2rem; text-align: right; }
+  .run-table summary {
+    cursor: pointer; font-size: 0.8rem; color: var(--muted, #5b6472);
+  }
   .badge {
-    font-size: 0.72rem; font-weight: 700; letter-spacing: 0.05em;
-    padding: 0.15rem 0.5rem; border-radius: 999px; color: #fff;
+    display: inline-block;
+    font-size: 0.68rem; font-weight: 700; letter-spacing: 0.05em;
+    padding: 0.1rem 0.4rem; border-radius: 999px; color: #fff;
   }
   .badge.SUCCESS { background: #1b5e20; }
   .badge.WARN { background: #b26a00; }
   .badge.ERROR { background: #b3261e; }
-  .run-metrics { font-size: 0.85rem; color: var(--muted, #5b6472); margin: 0.4rem 0 0; }
-  .run details { margin-top: 0.5rem; min-width: 0; }
-  .run summary {
-    cursor: pointer; font-size: 0.85rem;
-    /* A small tappable target: the whole line opens the log. */
-    padding: 0.4rem 0; display: block;
+  .pager {
+    display: flex; gap: 0.5rem; justify-content: center;
+    margin: 1rem 0 0.25rem; flex-wrap: wrap;
   }
-  .run pre {
-    /* pre-wrap alone is not enough on a narrow screen: the box still sizes to
-       its longest line, so max-width: 100% plus break-word is what actually
-       keeps the log inside the card. */
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-    word-break: break-word;
-    max-width: 100%;
-    margin: 0.5rem 0 0;
-    overflow-x: auto;
-    background: #f6f7f9; padding: 0.6rem; border-radius: 6px; font-size: 0.8rem;
-  }
-  /* Log lines are "ADDED  2026-10-03T09:00:00 - Dentist (from: ...)".
-     On a phone that is one very long line, so each entry is allowed to wrap
-     and the verb is kept on its own line by the pre's own wrapping. */
-  .run pre { line-height: 1.5; }
-
-  /* Summary tiles: five across is unreadable at 360px, so they reflow. */
-  .summary { grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr)); }
+  #runs-page-label { text-align: center; }
+  .rule { border: 0; border-top: 1px solid var(--line, #dfe3e8); margin: 1.5rem 0; }
+  .card h3 { font-size: 0.95rem; margin: 0 0 0.4rem; }
 
   .field { margin: 1rem 0; }
   .field label { display: block; font-weight: 600; margin-bottom: 0.3rem; }
@@ -701,6 +757,7 @@ const description =
       const runs = sortRunsNewestFirst(
         snapshot.docs.map((d) => ({ run_id: d.id, ...d.data() })),
       );
+      runCache = runs;
       renderRuns(runs);
     } catch (e) {
       // permission-denied here almost always means this email is not on the
@@ -709,6 +766,34 @@ const description =
         `Could not load run history: ${e.message}`, 'error');
       $('history-empty').hidden = false;
     }
+  }
+
+  /** Days shown per page of history. */
+  const RUNS_PAGE_DAYS = 7;
+
+  /** Cached runs and the current page, so paging needs no re-query. */
+  let runCache = [];
+  let runPage = 0;
+  let runPageCount = 1;
+
+  /** Day key (YYYY-MM-DD) a run belongs to, from its run_id. */
+  function runDayKey(runId) {
+    const day = String(runId ?? '').slice(0, 8);
+    return /^\d{8}$/.test(day)
+      ? `${day.slice(0, 4)}-${day.slice(4, 6)}-${day.slice(6, 8)}`
+      : 'unknown';
+  }
+
+  /** Group runs by day, newest day first, preserving order within a day. */
+  function groupRunsByDay(runs) {
+    const groups = new Map();
+    for (const run of runs) {
+      const key = runDayKey(run.run_id);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(run);
+    }
+    return [...groups.entries()]
+      .sort((a, b) => (a[0] < b[0] ? 1 : a[0] > b[0] ? -1 : 0));
   }
 
   function renderRuns(runs) {
@@ -725,31 +810,94 @@ const description =
     $('s-scanned').textContent = s.emailsScanned;
     $('s-created').textContent = s.eventsCreated;
 
-    for (const run of runs) {
-      const status = String(run.status ?? 'UNKNOWN').toUpperCase();
-      const metrics = [
-        `${run.emails_scanned ?? 0} emails read`,
-        `${run.events_created ?? 0} events added`,
-        `${run.skipped ?? 0} skipped`,
-      ].join(' · ');
-      const logs = Array.isArray(run.logs) ? run.logs : [];
+    const days = groupRunsByDay(runs);
+    runPageCount = Math.max(1, Math.ceil(days.length / RUNS_PAGE_DAYS));
+    if (runPage > runPageCount - 1) runPage = runPageCount - 1;
+    const page = days.slice(runPage * RUNS_PAGE_DAYS,
+      (runPage + 1) * RUNS_PAGE_DAYS);
 
-      const li = document.createElement('li');
-      li.className = 'run';
-      // Every interpolated value goes through escapeHtml. Status and log lines
-      // come from the Pi, but notification bodies originate in email subjects,
-      // which an outside party can influence.
-      li.innerHTML = `
-        <div class="run-top">
-          <span class="badge ${escapeHtml(status)}">${escapeHtml(status)}</span>
-          <span class="run-time">${escapeHtml(formatRunId(run.run_id))}</span>
-        </div>
-        <p class="run-metrics">${escapeHtml(metrics)}</p>
-        ${logs.length ? `<details><summary>Logs</summary>`
-          + `<pre>${escapeHtml(logs.join('\n'))}</pre></details>` : ''}
-      `;
-      list.appendChild(li);
+    renderPager();
+
+    for (const [day, dayRuns] of page) {
+      // One table per day. A single list of 15 runs across 15 dates scrolled
+      // off the side of a phone; a dated table with fixed columns does not.
+      const wrap = document.createElement('section');
+      wrap.className = 'day';
+
+      const heading = document.createElement('h3');
+      heading.className = 'day-heading';
+      heading.textContent = new Date(`${day}T00:00:00`).toLocaleDateString(
+        undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+      wrap.appendChild(heading);
+
+      const table = document.createElement('table');
+      table.className = 'run-table';
+      table.innerHTML = `
+        <thead><tr>
+          <th scope="col">Time</th>
+          <th scope="col">Result</th>
+          <th scope="col">Emails</th>
+          <th scope="col">Events</th>
+          <th scope="col">Detail</th>
+        </tr></thead><tbody></tbody>`;
+      const tbody = table.querySelector('tbody');
+
+      for (const run of dayRuns) {
+        const status = String(run.status ?? 'UNKNOWN').toUpperCase();
+        const logs = Array.isArray(run.logs) ? run.logs : [];
+        const tr = document.createElement('tr');
+        // Every interpolated value goes through escapeHtml. Log lines contain
+        // email subjects, which an outside party can influence.
+        tr.innerHTML = `
+          <td class="cell-time">${escapeHtml(formatRunId(run.run_id).split(' ').pop())}</td>
+          <td><span class="badge ${escapeHtml(status)}">${escapeHtml(status)}</span></td>
+          <td class="cell-num">${escapeHtml(run.emails_scanned ?? 0)}</td>
+          <td class="cell-num">${escapeHtml(run.events_created ?? 0)}</td>
+          <td class="cell-detail"></td>`;
+
+        const cell = tr.querySelector('.cell-detail');
+        if (logs.length) {
+          const details = document.createElement('details');
+          const summary = document.createElement('summary');
+          summary.textContent = `${logs.length} line${logs.length === 1 ? '' : 's'}`;
+          const pre = document.createElement('pre');
+          pre.textContent = logs.join('\n');
+          details.append(summary, pre);
+          cell.appendChild(details);
+        } else {
+          cell.textContent = '—';
+        }
+        tbody.appendChild(tr);
+      }
+      wrap.appendChild(table);
+      list.appendChild(wrap);
     }
+  }
+
+  /** Days on the current page, as "3 Oct – 9 Oct". */
+  function renderPager() {
+    const pager = $('runs-pager');
+    pager.innerHTML = '';
+    $('runs-page-label').textContent =
+      runPageCount > 1 ? `Page ${runPage + 1} of ${runPageCount}` : '';
+    pager.hidden = runPageCount <= 1;
+    if (runPageCount <= 1) return;
+
+    const older = document.createElement('button');
+    older.type = 'button';
+    older.className = 'btn ghost';
+    older.textContent = 'Newer';
+    older.disabled = runPage === 0;
+    older.addEventListener('click', () => { runPage = Math.max(0, runPage - 1); renderRuns(runCache); });
+
+    const newer = document.createElement('button');
+    newer.type = 'button';
+    newer.className = 'btn ghost';
+    newer.textContent = 'Older';
+    newer.disabled = runPage >= runPageCount - 1;
+    newer.addEventListener('click', () => { runPage = Math.min(runPageCount - 1, runPage + 1); renderRuns(runCache); });
+
+    pager.append(older, newer);
   }
 
   // --- Config editor ------------------------------------------------------
@@ -840,6 +988,80 @@ const description =
     }
   }
 
+  // --- Test notification --------------------------------------------------
+  //
+  // The browser cannot send a push itself: FCM credentials live on the Pi. So
+  // the button writes a request document and the Pi's existing daemon picks it
+  // up on its next one-minute check. The result is polled back, which makes the
+  // button an end-to-end check of the whole path rather than a guess.
+
+  const TEST_MESSAGES_COLLECTION = 'test_messages';
+
+  async function requestTestNotification() {
+    const node = $('test-push-state');
+    const button = $('test-push');
+    const user = auth?.currentUser;
+    if (!user) {
+      say(node, 'Sign in first.', 'error');
+      return;
+    }
+
+    button.disabled = true;
+    say(node, 'Asking the Pi to send a test notification...');
+
+    const requestId = deviceDocumentId(
+      `${user.email}:${new Date().toISOString()}:${Math.random()}`);
+    try {
+      await firestoreNs.setDoc(
+        firestoreNs.doc(db, TEST_MESSAGES_COLLECTION, requestId),
+        {
+          requested_by: user.email,
+          requested_at: new Date().toISOString(),
+          status: 'pending',
+          title: 'Family Assistant',
+          body: 'Test notification - push is working.',
+        },
+      );
+    } catch (e) {
+      button.disabled = false;
+      say(node, /permission|denied/i.test(e?.message ?? '')
+        ? 'Your account cannot request a test notification.'
+        : `Could not queue it: ${e.message}`, 'error');
+      return;
+    }
+
+    // The Pi polls once a minute. Poll for the outcome rather than guessing.
+    // 1.5s here so a test can observe the loop; the real cost is one read.
+    const deadline = Date.now() + 90_000;
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 1500));
+      try {
+        const snap = await firestoreNs.getDoc(
+          firestoreNs.doc(db, TEST_MESSAGES_COLLECTION, requestId));
+        if (!snap.exists()) continue;
+        const data = snap.data() ?? {};
+        if (data.status === 'pending') continue;
+        if (data.status === 'expired') {
+          say(node, 'The Pi did not pick it up within five minutes. Is the '
+            + 'family_planner service running?', 'error');
+        } else if (data.sent > 0) {
+          say(node, `Sent to ${data.sent} device${data.sent === 1 ? '' : 's'}. `
+            + 'Check your phone for the notification.', 'ok');
+        } else {
+          say(node, `No subscribed devices (${data.devices ?? 0} known). `
+            + 'Enable notifications on this device first.', 'error');
+        }
+        button.disabled = false;
+        return;
+      } catch (e) {
+        // A read failure is not a reason to give up; try again.
+      }
+    }
+    button.disabled = false;
+    say(node, 'Still waiting for the Pi. It checks once a minute - try again in '
+      + 'a moment.', 'error');
+  }
+
   // --- Push subscription --------------------------------------------------
 
   async function refreshPushState() {
@@ -849,9 +1071,15 @@ const description =
       return;
     }
     if (Notification.permission === 'denied') {
-      say(node, 'Notifications are blocked for this site. Re-enable them in '
-        + 'your browser settings.');
-      $('enable-push').disabled = true;
+      // The button is NOT disabled here. Once a browser has blocked a site it
+      // never prompts again, so a disabled button with no way forward is the
+      // "pressing it does nothing" case. Instead the state line says what to
+      // do, and the button stays available in case the user re-enabled
+      // notifications in browser settings without reloading.
+      say(node, 'Notifications are blocked for this site. A browser will not '
+        + 'ask again once blocked: re-enable notifications for ryanlilker.com '
+        + 'in your browser site settings, then reload this page and press the '
+        + 'button again.', 'error');
       return;
     }
     if (Notification.permission === 'granted' && messaging) {
@@ -861,10 +1089,61 @@ const description =
     say(node, 'Not enabled on this device yet.');
   }
 
+  /**
+ * Register the worker, making sure the one we get is the CURRENT one.
+ *
+ * navigator.serviceWorker.register() returns the EXISTING registration when one
+ * is already registered for the URL, and only fetches the new script in the
+ * background. So after any fix to firebase-sw.js, the page kept talking to the
+ * worker the previous build had installed: registration "succeeded", the INIT
+ * ack never arrived, and the user was told the worker did not start - or, when
+ * the page gave up quietly first, that the button did nothing.
+ *
+ * updateViaCache bypasses the HTTP cache, and we wait for the new worker to
+ * reach "activated" before proceeding, so the handshake is always with the code
+ * that is actually deployed.
+ */
+async function registerWorker() {
+  if (!('serviceWorker' in navigator)) {
+    throw new Error('This browser has no service worker support.');
+  }
+  const registration = await navigator.serviceWorker.register(
+    '/family-assistant/firebase-sw.js',
+    // MODULE, not classic. firebase-sw.js uses top-level `import`, which is
+    // only legal in a module worker. Registered as classic - the default -
+    // the browser throws a SyntaxError while evaluating the script and
+    // registration fails with "ServiceWorker script evaluation failed".
+    { type: 'module', updateViaCache: 'none' },
+  );
+
+  await registration.update();
+
+  // Wait for any installing worker to take over, so we do not handshake with
+  // the stale one. Bounded, because a worker that fails to evaluate never
+  // activates - and then the honest thing is to report that, not hang.
+  const activating = registration.installing || registration.waiting;
+  if (activating) {
+    await new Promise((resolve) => {
+      const done = () => resolve();
+      activating.addEventListener('statechange', () => {
+        if (activating.state === 'activated'
+          || activating.state === 'redundant') done();
+      });
+      setTimeout(done, 5000);
+    });
+  }
+
+  await navigator.serviceWorker.ready;
+  return registration;
+  }
+
   async function enablePush() {
     const node = $('push-state');
     const button = $('enable-push');
     button.disabled = true;
+    // Say something immediately. The previous version left the button inert
+    // while it worked, which is indistinguishable from a broken page.
+    say(node, 'Requesting permission from your browser...');
 
     try {
       // getToken() rejects with an opaque SDK error when vapidKey is empty, so
@@ -880,7 +1159,12 @@ const description =
 
       const permission = await Notification.requestPermission();
       if (permission !== 'granted') {
-        say(node, 'Permission was not granted, so no notifications will arrive.');
+        say(node, permission === 'denied'
+          ? 'Notifications are blocked for this site. A browser will not ask '
+            + 'again once blocked - re-enable it for ryanlilker.com in your '
+            + 'browser site settings, then reload this page.'
+          : 'Permission was not granted, so no notifications will arrive.',
+        permission === 'denied' ? 'error' : 'muted');
         return;
       }
       if (!messaging) {
@@ -889,26 +1173,28 @@ const description =
         return;
       }
 
-      const registration = await navigator.serviceWorker.register(
-        '/family-assistant/firebase-sw.js',
-        // MODULE, not classic. firebase-sw.js uses top-level `import`, which is
-        // only legal in a module worker. Registered as classic - the default -
-        // the browser throws a SyntaxError while evaluating the script and
-        // registration fails with "ServiceWorker script evaluation failed".
-        // This is why permission was granted and then subscription still died.
-        { type: 'module' },
-      );
-      await navigator.serviceWorker.ready;
+      say(node, 'Starting the notification worker...');
+      let registration;
+      try {
+        registration = await registerWorker();
+      } catch (e) {
+        say(node, `The notification worker could not be started: ${e.message}`,
+          'error');
+        return;
+      }
 
       // The worker lives in public/, so its config cannot be baked in at build
       // time. Hand it over and wait for the ack: getToken() fails if messaging
       // was never initialised inside the worker.
       const ready = await initWorker(registration);
       if (!ready) {
-        say(node, 'The notification service worker did not start.', 'error');
+        say(node, 'The notification worker started but did not acknowledge. '
+          + 'This usually means an old version is cached - reload the page '
+          + 'once, or clear site data, then try again.', 'error');
         return;
       }
 
+      say(node, 'Requesting a push token from Google...');
       const fcm = await messagingSdk();
       const token = await fcm.getToken(messaging, {
         vapidKey: VAPID_KEY,
@@ -973,6 +1259,7 @@ const description =
   function wire() {
     $('save-config')?.addEventListener('click', saveConfig);
     $('enable-push')?.addEventListener('click', enablePush);
+    $('test-push')?.addEventListener('click', requestTestNotification);
     $('refresh')?.addEventListener('click', loadRuns);
     $('sign-out')?.addEventListener('click', async () => {
       const authNs = await firebaseAuth();

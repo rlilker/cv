@@ -134,9 +134,15 @@ test.describe('service worker', () => {
 });
 
 test.describe('sign-in', () => {
-  test('the Google button renders', async ({ dashboard: page }) => {
+  test('the Google button renders', async ({ browser, baseURL }) => {
+    // neverSignedIn: with a session the page correctly hides the button.
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    await stubFirebase(page, { neverSignedIn: true });
+    await page.goto(`${baseURL}/family-assistant/dashboard`);
     await expect(page.locator('#signin-slot iframe, #signin-slot div'))
       .toHaveCount(1, { timeout: 10_000 });
+    await ctx.close();
   });
 
   test('the panel is hidden until signed in', async ({ browser, baseURL }) => {
