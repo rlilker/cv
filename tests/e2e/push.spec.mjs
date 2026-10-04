@@ -96,3 +96,56 @@ test.describe('push subscription', () => {
       await ctx.close();
     });
 });
+
+test.describe('local notification test', () => {
+  // "The Pi says it sent to 1 device and nothing arrived" has two very
+  // different causes: this device cannot display notifications at all, or the
+  // push was accepted by Google and dropped in delivery. FCM reports success
+  // for the second case, because a browser with no live push connection is not
+  // an error. This button removes the Pi and the network from the question.
+
+  test('asks the worker to display a notification', async ({ browser, baseURL }) => {
+    const { ctx, page } = await phonePage(browser, baseURL);
+    // The worker only becomes active once it is registered, which the page
+    // does on subscribe. Subscribe first, exactly as a real phone would.
+    await page.locator('#enable-push').click();
+    await expect(page.locator('#push-state'))
+      .toContainText('enabled', { timeout: 15_000 });
+
+    await page.locator('#local-push').click();
+    await expect(page.locator('#local-push-state'))
+      .toContainText('Asked the worker', { timeout: 15_000 });
+    await ctx.close();
+  });
+
+  test('says so plainly when permission is not granted',
+    async ({ browser, baseURL }) => {
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      await stubFirebase(page, {});
+      await page.addInitScript(() => {
+        Object.defineProperty(Notification, 'permission', { get: () => 'denied' });
+      });
+      await page.goto(`${baseURL}/family-assistant/dashboard`);
+      await signedIn(page);
+
+      await page.locator('#local-push').click();
+      const text = await page.locator('#local-push-state').textContent();
+      expect(text).toContain('denied');
+      expect(text).toMatch(/allow notifications/i);
+      await ctx.close();
+    });
+
+  test('the service worker handles the local message',
+    async ({ baseURL }) => {
+      // Asserted on the file itself: the worker must know this message type, or
+      // the button silently does nothing on a real phone.
+      const response = await fetch(`${baseURL}/family-assistant/firebase-sw.js`);
+      expect(response.ok, 'the worker script must be served').toBe(true);
+      const source = await response.text();
+      expect(source, 'the worker must handle SHOW_LOCAL')
+        .toContain('SHOW_LOCAL');
+      expect(source, 'it must actually display something')
+        .toMatch(/showNotification\(/);
+    });
+});

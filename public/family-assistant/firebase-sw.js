@@ -59,6 +59,18 @@ function attachBackgroundHandler() {
 
 self.addEventListener('message', (event) => {
   const msg = event.data;
+  // A notification with no network and no Pi behind it. FCM answering "sent"
+  // only means Google accepted the message; it says nothing about whether the
+  // browser displayed it. This proves the device half on its own, so a missing
+  // push can be pinned on the device or on delivery rather than guessed at.
+  if (msg?.type === 'SHOW_LOCAL') {
+    event.waitUntil(showNotification(
+      msg.title || 'Family Assistant',
+      { body: msg.body || 'Local test - this device can show notifications.',
+        tag: 'family-assistant-local', data: { url: '/family-assistant/dashboard' } },
+    ));
+    return;
+  }
   if (msg?.type !== 'INIT') return;
   const ready = Boolean(initMessaging(msg.config));
   if (msg.config && msg.vapidKey) {

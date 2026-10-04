@@ -264,6 +264,21 @@ const description =
           Send a test notification
         </button>
         <p id="test-push-state" class="muted"></p>
+
+        <hr class="rule" />
+
+        <h3>Show a notification on this device</h3>
+        <p class="muted">
+          Asks this browser to display a notification right now, without the Pi
+          and without the network. It separates the two halves of the problem:
+          if this appears but the test push above does not, the device is fine
+          and the push did not arrive. If neither appears, the device is
+          blocking notifications.
+        </p>
+        <button type="button" class="btn" id="local-push">
+          Show a notification here
+        </button>
+        <p id="local-push-state" class="muted"></p>
       </section>
 
       <Footer />
@@ -1059,8 +1074,16 @@ const description =
           say(node, 'The Pi did not pick it up within five minutes. Is the '
             + 'family_planner service running?', 'error');
         } else if (data.sent > 0) {
-          say(node, `Sent to ${data.sent} device${data.sent === 1 ? '' : 's'}. `
-            + 'Check your phone for the notification.', 'ok');
+          // Wording matters here. Firebase accepting the message is NOT proof
+          // it was displayed: for web push, delivery depends on the browser
+          // holding a live connection to Google's servers, and a phone that
+          // cannot does not report an error. So this says "handed to Google",
+          // not "delivered", and points at the local test that CAN confirm it.
+          say(node, `Handed to Google for ${data.sent} device`
+            + `${data.sent === 1 ? '' : 's'}. That is not yet proof it was `
+            + 'displayed. Use "Show a notification here" below: if that appears '
+            + 'but this one does not, the device is fine and the push was '
+            + 'dropped in delivery.', 'ok');
         } else {
           say(node, `No subscribed devices (${data.devices ?? 0} known). `
             + 'Enable notifications on this device first.', 'error');
@@ -1228,6 +1251,54 @@ async function registerWorker() {
     }
   }
 
+  /**
+   * Ask THIS device to display a notification, with no Pi and no network.
+   *
+   * FCM reporting "1 of 1 devices notified" only means Google accepted the
+   * message. It says nothing about whether the browser displayed it, so a
+   * missing notification has two very different causes. This removes the Pi
+   * from the equation: if it appears, the device is healthy and delivery is the
+   * problem; if it does not, the device is blocking notifications.
+   */
+  async function showLocalNotification() {
+    const node = $('local-push-state');
+    const button = $('local-push');
+
+    if (typeof Notification === 'undefined') {
+      say(node, 'This browser does not support notifications at all.', 'error');
+      return;
+    }
+    if (Notification.permission !== 'granted') {
+      say(node,
+        `Permission is "${Notification.permission}", not "granted". Until it is `
+        + 'granted the device cannot display anything, which would fully explain '
+        + 'a missing push. Open the padlock or site-settings icon in the address '
+        + 'bar, allow notifications, then reload.', 'error');
+      return;
+    }
+
+    button.disabled = true;
+    try {
+      const registration = await registerWorker();
+      const worker = registration.active || navigator.serviceWorker.controller;
+      if (!worker) {
+        say(node, 'No active notification worker on this device.', 'error');
+        return;
+      }
+      worker.postMessage({
+        type: 'SHOW_LOCAL',
+        title: 'Family Assistant',
+        body: 'Local test - this device can show notifications.',
+      });
+      say(node, 'Asked the worker to display a notification. It should appear '
+        + 'within a second or two, even with this page in the background.');
+    } catch (e) {
+      say(node, `Could not reach the notification worker: ${e.message}`, 'error');
+    } finally {
+      button.disabled = false;
+    }
+  }
+
   /** postMessage handshake; resolves false if the worker never acknowledges. */
   function initWorker(registration, timeoutMs = 5000) {
     return new Promise((resolve) => {
@@ -1274,6 +1345,7 @@ async function registerWorker() {
     $('save-config')?.addEventListener('click', saveConfig);
     $('enable-push')?.addEventListener('click', enablePush);
     $('test-push')?.addEventListener('click', requestTestNotification);
+  $('local-push')?.addEventListener('click', showLocalNotification);
     $('refresh')?.addEventListener('click', loadRuns);
     $('sign-out')?.addEventListener('click', async () => {
       const authNs = await firebaseAuth();
