@@ -27,6 +27,33 @@ test.describe('test notification', () => {
     await ctx.close();
   });
 
+  test('queues a document id that is a hash string, not a Promise',
+    async ({ browser, baseURL }) => {
+      // Regression. deviceDocumentId is async (SHA-256 via Web Crypto), and the
+      // call site was missing `await`, so a Promise was passed as the document
+      // id. Real Firestore rejected it with "s.indexOf is not a function" and
+      // the button reported "Could not queue it". The shared stub's doc() used
+      // to take (db, path) only, so it silently discarded the id and the test
+      // passed anyway.
+      const ctx = await browser.newContext();
+      const page = await ctx.newPage();
+      await stubFirebase(page, {});
+      await page.goto(`${baseURL}/family-assistant/dashboard`);
+      await signedIn(page);
+
+      await page.locator('#test-push').click();
+      await expect(page.locator('#test-push-state'))
+        .not.toContainText('Could not queue it', { timeout: 10_000 });
+
+      const req = (await writes(page)).find((w) => w.path?.[0] === 'test_messages');
+      expect(req, 'no test_messages document was created').toBeTruthy();
+      const id = req.path[req.path.length - 1];
+      expect(typeof id, 'the document id must be a string').toBe('string');
+      // SHA-256 hex, as produced by deviceDocumentId.
+      expect(id, 'the id should be a hex digest').toMatch(/^[0-9a-f]{64}$/);
+      await ctx.close();
+    });
+
   test('reports "no devices" rather than implying success', async ({ browser, baseURL }) => {
     // Reporting zero deliveries plainly is the point of the button: the Pi has
     // been in that state, and it is why no notification ever arrived.
@@ -92,6 +119,42 @@ test.describe('run history tables', () => {
     await expect(page.locator('#runs-page-label')).toContainText('Page 2 of 2');
     await ctx.close();
   });
+
+  test('the log spans the full table width instead of one narrow column',
+    async ({ browser, baseURL }) => {
+      const { ctx, page } = await withRuns(browser, baseURL, [
+        { run_id: '20261003_050000', status: 'SUCCESS',
+          emails_scanned: 4, events_created: 1,
+          logs: ['ADDED one', 'SKIP two'] },
+      ]);
+
+      const geo = await page.evaluate(() => {
+        const table = document.querySelector('.run-table');
+        const headers = table.querySelectorAll('thead th');
+        const logCell = table.querySelector('.row-log td');
+        const summaryCell = table.querySelector('tbody tr:not(.row-log) td');
+        return {
+          columns: headers.length,
+          colSpan: logCell.colSpan,
+          // The log cell should start at the same left edge as the table and
+          // run to the same right edge: that is what "spans the table" means.
+          logLeft: logCell.getBoundingClientRect().left,
+          tableLeft: table.getBoundingClientRect().left,
+          logRight: logCell.getBoundingClientRect().right,
+          tableRight: table.getBoundingClientRect().right,
+          summaryRight: summaryCell.getBoundingClientRect().right,
+        };
+      });
+
+      // colSpan must equal the header count, or the row is short a cell and
+      // the browser lays it out ragged.
+      expect(geo.colSpan, 'the log cell must span every column').toBe(geo.columns);
+      expect(geo.logRight - geo.tableRight,
+        'the log cell stops short of the table edge').toBeLessThanOrEqual(1);
+      expect(Math.abs(geo.logLeft - geo.tableLeft),
+        'the log cell does not start at the table edge').toBeLessThanOrEqual(1);
+      await ctx.close();
+    });
 
   test('a very long log line does not push the table off a phone',
     async ({ browser, baseURL }) => {

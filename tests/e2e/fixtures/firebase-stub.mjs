@@ -114,8 +114,24 @@ export async function stubFirebase(page, opts = {}) {
         export async function signInWithCredential(auth, cred) { return state.user; }
         export const connectAuthEmulator = noop;
 
-        export function doc(db, path) {
-          const parts = path.split('/');
+        // The real doc() is variadic: doc(db, collection, id). This version used
+        // to accept only (db, path), which silently DROPPED the third argument -
+        // so passing a Promise as the document id (a missing await) went
+        // unnoticed, while production Firestore rejected it with
+        // "s.indexOf is not a function". Segments must be strings, as in the
+        // real SDK.
+        export function doc(db, ...segments) {
+          const parts = [];
+          for (const segment of segments) {
+            if (typeof segment !== 'string') {
+              throw new TypeError(
+                'doc() path segments must be strings, received '
+                + (segment === null ? 'null' : typeof segment));
+            }
+            for (const piece of segment.split('/')) {
+              if (piece) parts.push(piece);
+            }
+          }
           return { __path: parts, id: parts[parts.length - 1] };
         }
         export function collection(db, name) { return { __collection: name }; }

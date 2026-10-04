@@ -380,13 +380,14 @@ const description =
     overflow-wrap: anywhere;
     word-break: break-word;
   }
-  /* A details element is a block box that still sizes to its longest child, so
-     table-layout:fixed and overflow-wrap on the cell are not enough on their
-     own: the table grew to 1402px on a 1280px viewport, because `width:100%`
-     on the log block resolved against a cell whose width had not been fixed
-     yet. The detail cell therefore needs an explicit share of the table, and
-     the block inside it is sized against THAT rather than the content. */
-  .run-table .cell-detail { width: 42%; max-width: 42%; }
+  /* The log now spans the whole table as its own row, so the cell is as wide as
+     the table and needs no fixed share. The explicit width is kept on the block
+     inside it, because `width:100%` against an unresolved cell is what made the
+     table overflow to 1402px on a 1280px viewport. */
+  .run-table .row-log td { padding-top: 0; padding-bottom: 0.5rem; }
+  .run-table .cell-empty {
+    color: var(--muted, #5b6472); font-size: 0.75rem; font-style: italic;
+  }
   .run-table details {
     display: block; max-width: 100%; min-width: 0;
   }
@@ -838,13 +839,16 @@ const description =
           <th scope="col">Result</th>
           <th scope="col">Emails</th>
           <th scope="col">Events</th>
-          <th scope="col">Detail</th>
         </tr></thead><tbody></tbody>`;
       const tbody = table.querySelector('tbody');
 
       for (const run of dayRuns) {
         const status = String(run.status ?? 'UNKNOWN').toUpperCase();
         const logs = Array.isArray(run.logs) ? run.logs : [];
+        // Two rows per run: a compact summary, then the log spanning the whole
+        // table. The log used to be squeezed into a fifth column, where a
+        // wrapped stack of lines was narrow and hard to read - especially on a
+        // phone. Full width is what makes it legible.
         const tr = document.createElement('tr');
         // Every interpolated value goes through escapeHtml. Log lines contain
         // email subjects, which an outside party can influence.
@@ -852,22 +856,28 @@ const description =
           <td class="cell-time">${escapeHtml(formatRunId(run.run_id).split(' ').pop())}</td>
           <td><span class="badge ${escapeHtml(status)}">${escapeHtml(status)}</span></td>
           <td class="cell-num">${escapeHtml(run.emails_scanned ?? 0)}</td>
-          <td class="cell-num">${escapeHtml(run.events_created ?? 0)}</td>
-          <td class="cell-detail"></td>`;
+          <td class="cell-num">${escapeHtml(run.events_created ?? 0)}</td>`;
 
-        const cell = tr.querySelector('.cell-detail');
+        const logRow = document.createElement('tr');
+        logRow.className = 'row-log';
+        const logCell = document.createElement('td');
+        // colSpan, not a fixed number of columns: it must track the header, or
+        // adding a column later silently breaks the row.
+        logCell.colSpan = 4;
         if (logs.length) {
           const details = document.createElement('details');
           const summary = document.createElement('summary');
-          summary.textContent = `${logs.length} line${logs.length === 1 ? '' : 's'}`;
+          summary.textContent = `Log - ${logs.length} line${logs.length === 1 ? '' : 's'}`;
           const pre = document.createElement('pre');
           pre.textContent = logs.join('\n');
           details.append(summary, pre);
-          cell.appendChild(details);
+          logCell.appendChild(details);
         } else {
-          cell.textContent = '—';
+          logCell.textContent = 'No log lines recorded.';
+          logCell.className = 'cell-empty';
         }
-        tbody.appendChild(tr);
+        logRow.appendChild(logCell);
+        tbody.append(tr, logRow);
       }
       wrap.appendChild(table);
       list.appendChild(wrap);
@@ -1009,7 +1019,11 @@ const description =
     button.disabled = true;
     say(node, 'Asking the Pi to send a test notification...');
 
-    const requestId = deviceDocumentId(
+    // `await` is required: deviceDocumentId is async (it hashes with Web Crypto),
+    // so without it this passed a Promise as the document id and Firestore
+    // failed with "s.indexOf is not a function". The id is a hash, so a request
+    // cannot be guessed and the listing does not leak who is testing.
+    const requestId = await deviceDocumentId(
       `${user.email}:${new Date().toISOString()}:${Math.random()}`);
     try {
       await firestoreNs.setDoc(
