@@ -201,12 +201,20 @@
   ],
   "skillGroups": [
     {
+      "id": "ai",
+      "title": "AI & Agentic Development",
+      "items": [
+        "Agentic AI SDLC (Claude Code, Codex)",
+        "LLM Integration & Evaluation (DeepEval)"
+      ]
+    },
+    {
       "id": "backend",
       "title": "Backend & Languages",
       "items": [
-        "Java",
         "C#",
-        ".NET (Core – 8)",
+        "Java (Spring Boot, Swing)",
+        ".NET (1.1 – 11.0)",
         "ASP.NET MVC",
         "REST APIs & Web Services",
         "LINQ",
@@ -219,15 +227,30 @@
     {
       "id": "frontend",
       "title": "Frontend",
-      "items": ["TypeScript", "JavaScript", "React", "HTML5", "CSS", "SCSS", "SignalR", "jQuery"]
+      "items": [
+        "TypeScript",
+        "JavaScript",
+        "React",
+        "HTML5",
+        "CSS",
+        "SCSS",
+        "LESS",
+        "SASS",
+        "SignalR",
+        "jQuery"
+      ]
     },
     {
       "id": "data",
       "title": "Databases",
       "items": [
         "PostgreSQL",
-        "SQL Server",
+        "MySQL",
+        "MongoDB",
+        "OpenSearch",
+        "SQL Server (7.0 – 2016)",
         "Azure SQL",
+        "AWS RDS",
         "Redis",
         "Stored Procedures",
         "Database Indexing & Tuning",
@@ -246,8 +269,8 @@
         "TDD",
         "Extreme Programming (XP)",
         "Pair Programming",
-        "CI/CD Pipelines",
-        "Automated Testing",
+        "CI/CD Pipelines (GitHub Actions, Azure DevOps, TeamCity, AWS CodePipeline, Jenkins)",
+        "Automated Testing (xUnit, NUnit, Jest, Playwright, Selenium)",
         "Code Review & Pull Requests",
         "Agile, Scrum & Kanban",
         "SonarQube / SonarCloud"
@@ -256,12 +279,25 @@
     {
       "id": "source-control",
       "title": "Source Control & Tools",
-      "items": ["Git", "GitHub", "Azure DevOps Repos", "Linux", "Node.js"]
+      "items": [
+        "Git",
+        "GitHub",
+        "Azure DevOps Repos",
+        "Team Foundation Server",
+        "Visual SourceSafe",
+        "SVN",
+        "Linux",
+        "Node.js"
+      ]
     },
     {
       "id": "mobile",
       "title": "Mobile Development",
-      "items": ["React Native", "Xamarin Forms", "SQLite", "Ionic Framework"]
+      "items": [
+        "React Native",
+        "Xamarin Forms (C#, SQLite)",
+        "Ionic Framework (Angular 2, TypeScript)"
+      ]
     },
     {
       "id": "leadership",
@@ -298,12 +334,15 @@
 
   "interests": [
     "Family & friends",
-    "Reading",
-    "Guitar",
-    "Learning Spanish",
-    "Cooking",
+    "Cinema & TV",
+    "Cars & Motorbikes",
+    "Cats & Dogs",
+    "Reading (Sci-Fi & Fantasy)",
     "Gaming",
-    "Puzzles"
+    "Puzzles",
+    "Cooking",
+    "Guitar",
+    "Learning Spanish"
   ],
   "navSections": [
     { "id": "introduction", "label": "Introduction" },
