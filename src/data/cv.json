@@ -335,14 +335,13 @@
   "interests": [
     "Family & friends",
     "Cinema & TV",
-    "Cars & Motorbikes",
-    "Cats & Dogs",
-    "Reading (Sci-Fi & Fantasy)",
+    "Engineering",
+    "Reading",
     "Gaming",
     "Puzzles",
     "Cooking",
     "Guitar",
-    "Learning Spanish"
+    "Language learning"
   ],
   "navSections": [
     { "id": "introduction", "label": "Introduction" },
