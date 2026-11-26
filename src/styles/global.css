@@ -59,6 +59,12 @@
   --measure-lead: 104ch; /* lead and summary paragraphs, one step wider */
 }
 
+@media (max-width: 720px) {
+  :root {
+    --gutter: 20px;
+  }
+}
+
 /* ── Reset ──────────────────────────────────────────────────────────────── */
 
 *,
