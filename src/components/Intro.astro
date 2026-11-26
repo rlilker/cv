@@ -25,9 +25,18 @@ import { profile, lastName } from '../data/cv';
 
     <a class="action-btn brand github" href={profile.github} target="_blank" rel="noopener noreferrer">
       <svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-        <path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48l-.01-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.9 1.53 2.36 1.09 2.94.83.09-.65.35-1.09.63-1.34-2.22-.25-4.56-1.11-4.56-4.94 0-1.09.39-1.99 1.03-2.69-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.03A9.5 9.5 0 0 1 12 6.8c.85 0 1.71.12 2.51.34 1.91-1.3 2.75-1.03 2.75-1.03.55 1.38.2 2.4.1 2.65.64.7 1.03 1.6 1.03 2.69 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85l-.01 2.75c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"></path>
+        <path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48l-.01-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.9 1.53 2.36 1.09 2.94.83.09-.65.35-1.09.63-1.34-2.22-.25-4.56-1.11-4.56-4.94 0-1.09.39-1.99 1.03-2.69-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.03A9.5 9.5 0 0 1 12 6.8c.85 0 1.71.12 2.51.34 1.91-1.3 2.75-1.03 2.75-1.03.55 1.38.2 2.4.1 2.65.64.7 1.03 1.6 1.03 2.69 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85l-.01 2.75c0 .27.18 .58 .69 .48A10 10 0 0 0 12 2Z"></path>
       </svg>
       GitHub
+    </a>
+
+    <a class="action-btn download" href="/Ryan_Lilker_CV.pdf" download>
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+        <polyline points="7 10 12 15 17 10"></polyline>
+        <line x1="12" x2="12" y1="15" y2="3"></line>
+      </svg>
+      Download CV
     </a>
   </div>
 </section>
@@ -102,8 +111,8 @@ import { profile, lastName } from '../data/cv';
 
   .action-row {
     display: grid;
-    /* Two contact buttons: LinkedIn and GitHub. */
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    /* Three contact buttons: LinkedIn, GitHub, Download CV. */
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 20px;
     width: 100%;
     margin-top: 4px;
@@ -164,17 +173,26 @@ import { profile, lastName } from '../data/cv';
     filter: brightness(0) invert(1);
   }
 
+  .action-btn.download:hover {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  .action-btn.download:hover .icon {
+    stroke: #fff;
+  }
+
   /* ── Responsive ──────────────────────────────────────────────────────── */
 
   @media (max-width: 900px) {
     /*
-     * Only .action-row needs pinning to two columns. .intro-cols is left alone
+     * Only .action-row needs pinning to three columns. .intro-cols is left alone
      * deliberately: it already collapses to a single column on its own via
-     * minmax(min(100%, 40ch), 1fr), and re-forcing a two-column track here is
+     * minmax(min(100%, 40ch), 1fr), and re-forcing a three-column track here is
      * what kept the single paragraph narrow in the first place.
      */
     .action-row {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
     }
   }
 

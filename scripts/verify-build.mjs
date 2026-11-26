@@ -93,7 +93,7 @@ section('Profile');
 check('name', html.home.includes(data.profile.name));
 check('role', html.home.includes(data.profile.role));
 check('updated profile role', data.profile.role === 'Experienced Software Engineer');
-check('30 years of experience', data.profile.yearsExperience === 30 && html.home.includes('30 years of experience'));
+check('25 years of experience', data.profile.yearsExperience === 25 && html.home.includes('25 years of experience'));
 check('first-person introduction', data.profile.intro[0]?.startsWith('I am an Experienced Software Engineer'));
 check('LinkedIn', html.home.includes(data.profile.linkedin));
 check('GitHub', html.home.includes(data.profile.github));
@@ -281,11 +281,11 @@ for (const href of internalHrefs) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 section('Cross-page navigation');
-check('home links to the app', html.home.includes('/family-assistant"'));
+check('home does not link to the app (hidden)', !html.home.includes('/family-assistant"'));
 check('app links to the CV', html.app.includes('href="/"'));
 check('legal pages link to each other', html.privacy.includes('/family-assistant/terms"') && html.terms.includes('/family-assistant/privacy"'));
 check('nav present on every page', all.every((h) => h.includes('class="nav-pill nav-links"')));
-check('app reachable from the nav on every page', all.every((h) => h.includes('href="/family-assistant"')));
+check('home nav does not link to the app (hidden)', !html.home.includes('href="/family-assistant"'));
 check('CV sections reachable from the nav on every page', all.every((h) => h.includes('href="/#experience"')));
 check('nav behavior loads on every page', all.every((h) => h.includes('IntersectionObserver') && h.includes('.nav-toggle')));
 

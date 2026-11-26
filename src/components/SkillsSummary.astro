@@ -1,0 +1,60 @@
+---
+import { skillsSummary } from '../data/cv';
+import SectionTitle from './SectionTitle.astro';
+---
+
+<section class="section skills-summary" id="skills-summary">
+  <SectionTitle title="Skills Summary" meta={`${skillsSummary.length} areas of expertise`} />
+
+  <ul class="summary-list">
+    {skillsSummary.map((item) => (
+      <li class="summary-item">{item}</li>
+    ))}
+  </ul>
+</section>
+
+<style>
+  .skills-summary {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 20px;
+    width: 100%;
+  }
+
+  .summary-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+    max-width: var(--measure);
+    padding: 0;
+    margin: 0;
+    list-style: none;
+  }
+
+  .summary-item {
+    position: relative;
+    padding-left: 24px;
+    font-size: 16px;
+    line-height: 1.55;
+    color: var(--ink-soft);
+  }
+
+  .summary-item::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0.6em;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  @media (max-width: 720px) {
+    .summary-item {
+      font-size: 15px;
+    }
+  }
+</style>

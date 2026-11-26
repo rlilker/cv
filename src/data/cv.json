@@ -7,9 +7,9 @@
     "timezone": "Europe/London",
     "linkedin": "https://www.linkedin.com/in/ryanlilker/",
     "github": "https://github.com/rlilker",
-    "yearsExperience": 30,
+    "yearsExperience": 25,
     "intro": [
-      "I am an Experienced Software Engineer based in Manchester, UK, with 30 years of experience designing, building, and operating production software at scale."
+      "I am an Experienced Software Engineer based in Manchester, UK, with 25 years of experience designing, building, and operating production software at scale."
     ]
   },
   "roles": [
@@ -21,14 +21,14 @@
       "end": "Present",
       "summary": "Full-stack engineer contributing across both flagship product engineering and mission-critical business platforms in an agile, flat-hierarchy engineering culture.",
       "highlights": [
-        "Designed and shipped new features in Java for PortSwigger's flagship security testing desktop toolkit, including an AI feature integrating an LLM service and validated with DeepEval, used daily by over 80,000 penetration testers and security professionals worldwide.",
-        "Practiced rigorous Test-Driven Development (TDD) and Extreme Programming (XP) with continuous pair programming, engineering concurrent, performant Java code integrated into complex security workflows.",
         "Engineered and maintained high-availability backend services and platforms in .NET (C#) and SQL Server/PostgreSQL, powering automated software licensing, global payment processing, and subscription renewals.",
+        "Designed and shipped new features in Java for PortSwigger's flagship security testing desktop toolkit, including an AI feature integrating an LLM service and validated with DeepEval, used daily by over 80,000 penetration testers and security professionals worldwide.",
         "Adopted AI-assisted development with Codex and Claude Code, moving from using generative, text-based AI to a fully AI-native approach across the software development lifecycle.",
+        "Practiced rigorous Test-Driven Development (TDD) and Extreme Programming (XP) with continuous pair programming, engineering concurrent, performant Java code integrated into complex security workflows.",
+        "Collaborated across cross-functional squads to uphold high code-quality bars, collective code ownership, and continuous integration.",
         "Worked as sole developer on the in-house feedback and performance review system, trusted with highly confidential data and processes and accountable for delivering them alone.",
         "Co-led the graduate coaching programme, mentoring early-career engineers and running multiple Grad Boot Camps.",
-        "Worked closely with the kitchen team to design and build their own app in Lovable for managing the weekly menus, taking it from requirements through to a tool they use.",
-        "Collaborated across cross-functional squads to uphold high code-quality bars, collective code ownership, and continuous integration."
+        "Worked closely with the kitchen team to design and build their own app in Lovable for managing the weekly menus, taking it from requirements through to a tool used across the business."
       ],
       "stack": ["Java", ".NET", "C#", "SQL Server", "PostgreSQL", "MySQL", "MongoDB", "AWS", "TDD", "XP", "CI/CD", "Docker"]
     },
@@ -276,6 +276,26 @@
     }
   ],
 
+  "skillsSummary": [
+    "Agentic AI SDLC using Claude Code and Codex",
+    "Responsible for architecture, system stability, performance, and code quality",
+    "CI/CD using GitHub Actions, Azure Dev Ops, TeamCity, AWS CodePipeline, and Jenkins",
+    "Static analysis using Sonarqube/Sonarcloud",
+    ".NET 1.1 - 11.0 (C#, MVC, LINQ, ASP.NET, REST API, Web Services)",
+    "Java with SpringBoot and Swing",
+    "JavaScript, TypeScript and JQuery",
+    "CSS (inc. LESS, SCSS, and SASS)",
+    "SQL Server 7.0 - 2016, Azure SQL, AWS RDS (inc. T-SQL, stored procedures, triggers,indexing)",
+    "Postgres, MySQL, MongoDB, OpenSearch",
+    "Source control using Git / Azure Dev Ops/ Team Foundation Server / Visual SourceSafe / SVN",
+    "Unit and Integration Testing with xUnit, NUnit, Jest, Playwright",
+    "Mobile Development in React Native, Xamarin Forms (C#, SQLite), Ionic Framework (Angular 2, Typescript)",
+    "Implementation of development processes, standards, and practices",
+    "Line management of 12 people and liaising with other department heads, clients, and third-party suppliers",
+    "25 Years of development experience",
+    "2+ Years experience of technical support"
+  ],
+
   "interests": [
     "Family & friends",
     "Reading",
@@ -288,7 +308,7 @@
   "navSections": [
     { "id": "introduction", "label": "Introduction" },
     { "id": "experience", "label": "Experience" },
-    { "id": "projects", "label": "Projects" },
+    { "id": "skills-summary", "label": "Skills Summary" },
     { "id": "skills", "label": "Skills" },
     { "id": "interests", "label": "Interests" }
   ]

@@ -1,5 +1,5 @@
 ---
-import { navSections, projectLinks, profile } from '../data/cv';
+import { navSections, profile } from '../data/cv';
 
 const { current } = Astro.props as { current?: string };
 ---
@@ -30,17 +30,6 @@ const { current } = Astro.props as { current?: string };
         navSections.map((section) => (
           <a href={`/#${section.id}`} aria-current={current === section.id ? 'true' : undefined}>
             {section.label}
-          </a>
-        ))
-      }
-      {
-        projectLinks.map((project) => (
-          <a
-            class="nav-project"
-            href={project.href}
-            aria-current={current === 'projects' ? 'true' : undefined}
-          >
-            {project.label}
           </a>
         ))
       }
